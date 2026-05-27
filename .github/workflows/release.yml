@@ -23,15 +23,10 @@ jobs:
             exit 1
           fi
 
-      - uses: taiki-e/create-gh-release-action@v1
-        with:
-          draft: true
-          token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Generate release notes
+      - name: Create draft release with auto-generated notes
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh release edit "${GITHUB_REF#refs/tags/}" --generate-notes
+        run: gh release create "${GITHUB_REF#refs/tags/}" --draft --generate-notes
 
   build:
     needs: preflight
