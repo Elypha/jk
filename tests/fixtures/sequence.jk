@@ -1,0 +1,13 @@
+shell = "bash"
+
+[hello]
+desc = "say hi"
+cmd = "echo hi"
+
+[deep.greet]
+desc = "deep greet"
+cmd = "echo #{1}"
+
+[multi]
+desc = "multi-step"
+cmd = ["echo step1", "echo step2"]

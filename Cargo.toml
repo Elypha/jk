@@ -1,0 +1,39 @@
+[package]
+name = "jk"
+version = "0.1.0"
+edition = "2021"
+description = "Transparent CLI alias runner — a small, no-magic alternative to just/make"
+license = "Apache-2.0"
+repository = "https://github.com/Elypha/jk"
+readme = "README.md"
+
+[lib]
+name = "jk"
+path = "src/lib.rs"
+
+[[bin]]
+name = "jk"
+path = "src/main.rs"
+
+[dependencies]
+toml = "0.8"
+serde = { version = "1", features = ["derive"] }
+unicode-width = "0.2"
+time = { version = "0.3", features = ["formatting", "local-offset", "macros"] }
+
+[dev-dependencies]
+assert_cmd = "2"
+predicates = "3"
+tempfile = "3"
+serial_test = "3"
+which = "6"
+
+[target.'cfg(unix)'.dev-dependencies]
+libc = "0.2"
+
+[profile.release]
+lto = "fat"
+codegen-units = 1
+opt-level = "z"
+panic = "abort"
+strip = true

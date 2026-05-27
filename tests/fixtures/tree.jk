@@ -1,0 +1,8 @@
+shell = "bash"
+
+[encode.jpg]
+desc = "encode jpg"
+cmd = "magick #{1} -quality #{2} #{3}"
+
+[encode.webp]
+cmd = "cwebp #{@}"
