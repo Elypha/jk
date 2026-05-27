@@ -1,0 +1,8 @@
+shell = "bash"
+
+[build]
+desc = "build the project"
+cmd = "cargo build"
+
+[update]
+cmd = ["apt update", "apt upgrade #{@}"]

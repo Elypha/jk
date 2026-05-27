@@ -1,0 +1,62 @@
+name: release
+
+on:
+  push:
+    tags: ['v*.*.*']
+
+permissions:
+  contents: write
+
+jobs:
+  preflight:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check tag matches Cargo.toml version
+        run: |
+          TAG="${GITHUB_REF#refs/tags/}"
+          VERSION="${TAG#v}"
+          CARGO=$(grep -m1 '^version = ' Cargo.toml | sed -E 's/version = "(.*)"/\1/')
+          if [ "$VERSION" != "$CARGO" ]; then
+            echo "::error::tag '$TAG' does not match Cargo.toml version '$CARGO'"
+            exit 1
+          fi
+
+      - uses: taiki-e/create-gh-release-action@v1
+        with:
+          draft: true
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Generate release notes
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release edit "${GITHUB_REF#refs/tags/}" --generate-notes
+
+  build:
+    needs: preflight
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { target: x86_64-pc-windows-msvc,     runner: windows-latest }
+          - { target: aarch64-pc-windows-msvc,    runner: windows-latest }
+          - { target: x86_64-unknown-linux-musl,  runner: ubuntu-latest }
+          - { target: aarch64-unknown-linux-musl, runner: ubuntu-latest }
+          - { target: x86_64-apple-darwin,        runner: macos-latest }
+          - { target: aarch64-apple-darwin,       runner: macos-latest }
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - uses: taiki-e/upload-rust-binary-action@v1
+        with:
+          bin: jk
+          target: ${{ matrix.target }}
+          archive: $bin-$target
+          checksum: sha256
+          token: ${{ secrets.GITHUB_TOKEN }}
