@@ -45,6 +45,53 @@ $ jk x264enc a b      # #{1}/#{2} substituted from argv
 $ jk build ++dry-run  # print the exact command without executing
 ```
 
+## More patterns
+
+Multi-line - folded to a single line at run time
+
+```toml
+[docker-sh]
+cmd = '''
+docker run --rm -it
+  -v $(pwd):/work
+  -w /work
+  alpine sh
+'''
+# jk docker-sh
+```
+
+Namespaces (any depth) - `jk encode` lists encode/*
+
+```toml
+[encode.jpg]
+cmd = "magick #{1} -quality 90 #{2}"
+# jk encode jpg in.tiff out.jpg
+```
+
+All remaining args
+
+```toml
+[fmt]
+cmd = "rustfmt #{@}"
+# jk fmt src/main.rs src/lib.rs
+```
+
+Raw substitution - value dropped in without shell-quoting (`#{N!}` / `#{@!}`)
+
+```toml
+[vfilter]
+cmd = "ffmpeg -i in.mp4 -vf '#{1!}' out.mp4"
+# jk vfilter 'scale=640:480'
+```
+
+Per-leaf shell override
+
+```toml
+[winproc]
+shell = "pwsh"
+cmd = "Get-Process | Select-Object Name, CPU"
+```
+
 ## Install
 
 **Binary** - download from [Releases](https://github.com/Elypha/jk/releases).
