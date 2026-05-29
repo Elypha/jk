@@ -24,17 +24,28 @@ fn run_failing_command_returns_nonzero() {
 
 #[test]
 fn sequence_fail_fast() {
-    if which::which("bash").is_err() { eprintln!("skip"); return; }
+    if which::which("bash").is_err() {
+        eprintln!("skip");
+        return;
+    }
     let out = Out::from_env();
-    let exit = run_sequence(&["true".into(), "false".into(), "echo should-not-run".into()], Shell::Bash, &out, "test").unwrap();
+    let exit = run_sequence(
+        &["true".into(), "false".into(), "echo should-not-run".into()],
+        Shell::Bash,
+        &out,
+    )
+    .unwrap();
     assert_ne!(exit, 0);
 }
 
 #[test]
 fn sequence_all_pass() {
-    if which::which("bash").is_err() { eprintln!("skip"); return; }
+    if which::which("bash").is_err() {
+        eprintln!("skip");
+        return;
+    }
     let out = Out::from_env();
-    let exit = run_sequence(&["true".into(), "echo ok".into()], Shell::Bash, &out, "test").unwrap();
+    let exit = run_sequence(&["true".into(), "echo ok".into()], Shell::Bash, &out).unwrap();
     assert_eq!(exit, 0);
 }
 

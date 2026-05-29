@@ -1,16 +1,14 @@
+use crate::config::{CommandNode, Origin};
 use std::io::{IsTerminal, Write};
 use std::path::Path;
 use std::sync::OnceLock;
 use time::{OffsetDateTime, UtcOffset};
 use unicode_width::UnicodeWidthStr;
-use crate::config::{CommandNode, Origin};
 
-const TIME_MAIN: &str = "\x1b[38;2;209;224;222m";
-const TIME_SUB:  &str = "\x1b[38;2;179;179;179m";
-const COMMAND:   &str = "\x1b[38;2;194;240;232m";
-const TEXT:      &str = "\x1b[38;2;128;213;255m";
-const WARNING:   &str = "\x1b[38;2;255;213;0m";
-const RESET:     &str = "\x1b[0m";
+const PRIMARY: &str = "\x1b[38;2;209;224;222m";
+const MUTED: &str = "\x1b[38;2;174;178;176m";
+const WARNING: &str = "\x1b[38;2;255;213;0m";
+const RESET: &str = "\x1b[0m";
 
 // Process-level cache for the local UTC offset. Written once by `init_local_offset()`
 // before any threads are spawned; `current_local()` reads it from then on.
@@ -32,43 +30,34 @@ fn current_local() -> OffsetDateTime {
 
 fn format_timestamp(t: OffsetDateTime) -> String {
     let ms = t.nanosecond() / 1_000_000;
-    format!("{:02}:{:02}:{:02}.{:03}", t.hour(), t.minute(), t.second(), ms)
+    format!(
+        "{:02}:{:02}:{:02}.{:03}",
+        t.hour(),
+        t.minute(),
+        t.second(),
+        ms
+    )
 }
 
-fn paint_prefix(ts: &str, color: bool) -> String {
-    if !color {
-        return format!("[jk][{ts}]");
-    }
-    let dot = ts.find('.').unwrap_or(ts.len());
-    let secs = &ts[..dot];
-    let frac = &ts[dot..]; // includes the '.'
-    format!("{TIME_MAIN}[jk][{secs}{RESET}{TIME_SUB}{frac}{RESET}{TIME_MAIN}]{RESET}")
-}
-
-fn fmt_running(ts: &str, name: &str, color: bool) -> String {
-    let prefix = paint_prefix(ts, color);
-    if color {
-        format!("{prefix} {TEXT}running {name}{RESET}")
-    } else {
-        format!("{prefix} running {name}")
-    }
+fn paint_prefix(ts: &str) -> String {
+    format!("[jk][{ts}]")
 }
 
 fn fmt_step(ts: &str, cmd: &str, color: bool) -> String {
-    let prefix = paint_prefix(ts, color);
+    let body = format!("{} → {cmd}", paint_prefix(ts));
     if color {
-        format!("{prefix} {TEXT}→{RESET} {COMMAND}{cmd}{RESET}")
+        format!("{MUTED}{body}{RESET}")
     } else {
-        format!("{prefix} → {cmd}")
+        body
     }
 }
 
 fn fmt_completed(ts: &str, ms: u128, color: bool) -> String {
-    let prefix = paint_prefix(ts, color);
+    let body = format!("{} completed in {ms}ms", paint_prefix(ts));
     if color {
-        format!("{prefix} {TEXT}completed in {RESET}{TIME_MAIN}{ms}ms{RESET}")
+        format!("{MUTED}{body}{RESET}")
     } else {
-        format!("{prefix} completed in {ms}ms")
+        body
     }
 }
 
@@ -104,7 +93,12 @@ impl Out {
         let color_var = std::env::var("JK_NO_COLOR").ok();
         let stderr_tty = std::io::stderr().is_terminal();
         let stdout_tty = std::io::stdout().is_terminal();
-        Self::from_env_parts(quiet_var.as_deref(), color_var.as_deref(), stderr_tty, stdout_tty)
+        Self::from_env_parts(
+            quiet_var.as_deref(),
+            color_var.as_deref(),
+            stderr_tty,
+            stdout_tty,
+        )
     }
 
     pub fn from_env_parts(
@@ -122,20 +116,16 @@ impl Out {
         }
     }
 
-    pub fn jk_running(&self, name: &str) {
-        if self.quiet {
-            return;
-        }
-        let ts = format_timestamp(current_local());
-        let _ = writeln!(std::io::stderr().lock(), "{}", fmt_running(&ts, name, self.color));
-    }
-
     pub fn step_header(&self, cmd: &str) {
         if self.quiet {
             return;
         }
         let ts = format_timestamp(current_local());
-        let _ = writeln!(std::io::stderr().lock(), "{}", fmt_step(&ts, cmd, self.color));
+        let _ = writeln!(
+            std::io::stderr().lock(),
+            "{}",
+            fmt_step(&ts, cmd, self.color)
+        );
     }
 
     pub fn completed(&self, ms: u128) {
@@ -143,7 +133,11 @@ impl Out {
             return;
         }
         let ts = format_timestamp(current_local());
-        let _ = writeln!(std::io::stderr().lock(), "{}", fmt_completed(&ts, ms, self.color));
+        let _ = writeln!(
+            std::io::stderr().lock(),
+            "{}",
+            fmt_completed(&ts, ms, self.color)
+        );
     }
 
     pub fn failed(&self, step_idx: usize, exit: i32) {
@@ -151,7 +145,11 @@ impl Out {
             return;
         }
         let ts = format_timestamp(current_local());
-        let _ = writeln!(std::io::stderr().lock(), "{}", fmt_failed(&ts, step_idx, exit, self.color));
+        let _ = writeln!(
+            std::io::stderr().lock(),
+            "{}",
+            fmt_failed(&ts, step_idx, exit, self.color)
+        );
     }
 
     pub fn user_error(&self, msg: &str) {
@@ -189,9 +187,9 @@ impl Out {
 
         if path.is_empty() && !self.quiet {
             let bracket = if self.stdout_color {
-                concat!("\x1b[38;2;209;224;222m", "[jk]", "\x1b[0m")
+                format!("{PRIMARY}[jk]{RESET}")
             } else {
-                "[jk]"
+                "[jk]".to_string()
             };
             let _ = writeln!(s, "{} configs:", bracket);
             let _ = writeln!(s, "  global: {}", display_path_or_none(header_global));
@@ -199,7 +197,11 @@ impl Out {
             let _ = writeln!(s);
         }
 
-        let prefix = if path.is_empty() { "jk".to_string() } else { format!("jk {}", path.join(" ")) };
+        let prefix = if path.is_empty() {
+            "jk".to_string()
+        } else {
+            format!("jk {}", path.join(" "))
+        };
         let _ = writeln!(s, "{} commands:", prefix);
 
         let needs_marker_col = children.values().any(|n| match n {
@@ -212,16 +214,31 @@ impl Out {
             origin: Option<Origin>,
             desc: String,
         }
-        let entries: Vec<Entry> = children.iter().map(|(k, v)| {
-            let (display, origin, desc) = match v {
-                CommandNode::Namespace(_) => (format!("{}/", k), None, String::new()),
-                CommandNode::Leaf(l) => (k.clone(), Some(l.origin), l.desc.clone().unwrap_or_default()),
-            };
-            Entry { display, origin, desc }
-        }).collect();
+        let entries: Vec<Entry> = children
+            .iter()
+            .map(|(k, v)| {
+                let (display, origin, desc) = match v {
+                    CommandNode::Namespace(_) => (format!("{}/", k), None, String::new()),
+                    CommandNode::Leaf(l) => (
+                        k.clone(),
+                        Some(l.origin),
+                        l.desc.clone().unwrap_or_default(),
+                    ),
+                };
+                Entry {
+                    display,
+                    origin,
+                    desc,
+                }
+            })
+            .collect();
 
         // Use display width (not byte length) for correct alignment with CJK names.
-        let max_w = entries.iter().map(|e| UnicodeWidthStr::width(e.display.as_str())).max().unwrap_or(0);
+        let max_w = entries
+            .iter()
+            .map(|e| UnicodeWidthStr::width(e.display.as_str()))
+            .max()
+            .unwrap_or(0);
 
         for e in &entries {
             let pad = max_w.saturating_sub(UnicodeWidthStr::width(e.display.as_str()));
@@ -313,23 +330,6 @@ mod tests {
     }
 
     #[test]
-    fn fmt_running_no_color_matches_user_example() {
-        assert_eq!(
-            fmt_running("16:45:01.385", "make", false),
-            "[jk][16:45:01.385] running make"
-        );
-    }
-
-    #[test]
-    fn fmt_running_color_three_part_prefix_then_text_body() {
-        let s = fmt_running("16:45:01.385", "make", true);
-        assert!(s.contains("\x1b[38;2;209;224;222m[jk][16:45:01\x1b[0m"), "got: {s}");
-        assert!(s.contains("\x1b[38;2;179;179;179m.385\x1b[0m"), "got: {s}");
-        assert!(s.contains("\x1b[38;2;209;224;222m]\x1b[0m"), "got: {s}");
-        assert!(s.contains("\x1b[38;2;128;213;255mrunning make\x1b[0m"), "got: {s}");
-    }
-
-    #[test]
     fn fmt_step_no_color() {
         assert_eq!(
             fmt_step("16:45:02.103", "cd src && cargo build --release", false),
@@ -338,13 +338,12 @@ mod tests {
     }
 
     #[test]
-    fn fmt_step_color_arrow_text_command_command() {
+    fn fmt_step_color_is_single_muted_line() {
         let s = fmt_step("16:45:02.103", "cd src && cargo build --release", true);
-        assert!(s.contains("\x1b[38;2;209;224;222m[jk][16:45:02\x1b[0m"), "got: {s}");
-        assert!(s.contains("\x1b[38;2;179;179;179m.103\x1b[0m"), "got: {s}");
-        assert!(s.contains("\x1b[38;2;209;224;222m]\x1b[0m"), "got: {s}");
-        assert!(s.contains("\x1b[38;2;128;213;255m→\x1b[0m"), "got: {s}");
-        assert!(s.contains("\x1b[38;2;194;240;232mcd src && cargo build --release\x1b[0m"), "got: {s}");
+        assert_eq!(
+            s,
+            "\x1b[38;2;174;178;176m[jk][16:45:02.103] → cd src && cargo build --release\x1b[0m"
+        );
     }
 
     #[test]
@@ -356,13 +355,12 @@ mod tests {
     }
 
     #[test]
-    fn fmt_completed_color_text_body_then_time_main_ms() {
+    fn fmt_completed_color_is_single_muted_line() {
         let s = fmt_completed("16:45:02.421", 318, true);
-        assert!(s.contains("\x1b[38;2;209;224;222m[jk][16:45:02\x1b[0m"), "got: {s}");
-        assert!(s.contains("\x1b[38;2;179;179;179m.421\x1b[0m"), "got: {s}");
-        assert!(s.contains("\x1b[38;2;209;224;222m]\x1b[0m"), "got: {s}");
-        assert!(s.contains("\x1b[38;2;128;213;255mcompleted in \x1b[0m"), "got: {s}");
-        assert!(s.contains("\x1b[38;2;209;224;222m318ms\x1b[0m"), "got: {s}");
+        assert_eq!(
+            s,
+            "\x1b[38;2;174;178;176m[jk][16:45:02.421] completed in 318ms\x1b[0m"
+        );
     }
 
     #[test]
@@ -376,11 +374,23 @@ mod tests {
     #[test]
     fn fmt_failed_color_whole_line_warning() {
         let s = fmt_failed("16:45:02.421", 0, 2, true);
-        assert!(s.starts_with("\x1b[38;2;255;213;0m"), "failed line should start with WARNING open; got: {s}");
-        assert!(s.ends_with("\x1b[0m"), "failed line should end with reset; got: {s}");
+        assert!(
+            s.starts_with("\x1b[38;2;255;213;0m"),
+            "failed line should start with WARNING open; got: {s}"
+        );
+        assert!(
+            s.ends_with("\x1b[0m"),
+            "failed line should end with reset; got: {s}"
+        );
         let inner = &s["\x1b[38;2;255;213;0m".len()..s.len() - "\x1b[0m".len()];
-        assert!(!inner.contains("\x1b["), "failed line should be single color; got inner: {inner}");
-        assert!(inner.contains("[jk][16:45:02.421] failed at step 1 (exit 2)"), "got inner: {inner}");
+        assert!(
+            !inner.contains("\x1b["),
+            "failed line should be single color; got inner: {inner}"
+        );
+        assert!(
+            inner.contains("[jk][16:45:02.421] failed at step 1 (exit 2)"),
+            "got inner: {inner}"
+        );
     }
 
     #[test]
@@ -397,8 +407,14 @@ mod tests {
         assert!(s.starts_with("\x1b[38;2;255;213;0m"), "got: {s}");
         assert!(s.ends_with("\x1b[0m"), "got: {s}");
         let inner = &s["\x1b[38;2;255;213;0m".len()..s.len() - "\x1b[0m".len()];
-        assert!(!inner.contains("\x1b["), "error line should be single color; got inner: {inner}");
-        assert!(inner.contains("[jk] error: config path invalid: /tmp/nope"), "got inner: {inner}");
+        assert!(
+            !inner.contains("\x1b["),
+            "error line should be single color; got inner: {inner}"
+        );
+        assert!(
+            inner.contains("[jk] error: config path invalid: /tmp/nope"),
+            "got inner: {inner}"
+        );
     }
 
     #[test]

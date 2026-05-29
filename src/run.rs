@@ -47,8 +47,7 @@ pub fn run(cli: ParsedCli, out: &Out) -> JkResult<i32> {
         }
     };
 
-    let header_global: Option<&std::path::Path> = global_path.as_deref()
-        .filter(|p| p.is_file());
+    let header_global: Option<&std::path::Path> = global_path.as_deref().filter(|p| p.is_file());
     let header_local: Option<&std::path::Path> = local_path.as_deref();
 
     match resolve(&cfg, &cli.path)? {
@@ -79,16 +78,19 @@ pub fn run(cli: ParsedCli, out: &Out) -> JkResult<i32> {
                 return Ok(0);
             }
 
-            let name = resolved.path.join(" ");
-            run_sequence(&rendered, shell, out, &name)
+            run_sequence(&rendered, shell, out)
         }
     }
 }
 
 fn load_global_from(p: &std::path::Path) -> JkResult<Config> {
     config::load_from_path(p).map_err(|e| match e {
-        JkError::ConfigParse(m) => JkError::ConfigParse(format!("in global config {}: {}", p.display(), m)),
-        JkError::ConfigSchema(m) => JkError::ConfigSchema(format!("in global config {}: {}", p.display(), m)),
+        JkError::ConfigParse(m) => {
+            JkError::ConfigParse(format!("in global config {}: {}", p.display(), m))
+        }
+        JkError::ConfigSchema(m) => {
+            JkError::ConfigSchema(format!("in global config {}: {}", p.display(), m))
+        }
         other => other,
     })
 }

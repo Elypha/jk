@@ -34,13 +34,7 @@ fn exit_code_from_status(status: std::process::ExitStatus) -> i32 {
     -1
 }
 
-pub fn run_sequence(
-    rendered_cmds: &[String],
-    shell: Shell,
-    out: &Out,
-    name: &str,
-) -> JkResult<i32> {
-    out.jk_running(name);
+pub fn run_sequence(rendered_cmds: &[String], shell: Shell, out: &Out) -> JkResult<i32> {
     let start = std::time::Instant::now();
 
     for (idx, cmd) in rendered_cmds.iter().enumerate() {

@@ -29,12 +29,15 @@ fn unknown_flag_errors() {
 #[test]
 fn list_top_level_when_no_command() {
     let tmp = TempDir::new().unwrap();
-    write_jk(&tmp, r#"
+    write_jk(
+        &tmp,
+        r#"
 shell = "bash"
 [hello]
 desc = "say hi"
 cmd = "echo hi"
-"#);
+"#,
+    );
     Command::cargo_bin("jk")
         .unwrap()
         .current_dir(tmp.path())
@@ -46,7 +49,9 @@ cmd = "echo hi"
 #[test]
 fn list_namespace_children() {
     let tmp = TempDir::new().unwrap();
-    write_jk(&tmp, r#"
+    write_jk(
+        &tmp,
+        r#"
 shell = "bash"
 [encode.jpg]
 desc = "encode jpg"
@@ -54,7 +59,8 @@ cmd = "magick #{1}"
 [encode.webp]
 desc = "encode webp"
 cmd = "cwebp #{@}"
-"#);
+"#,
+    );
     Command::cargo_bin("jk")
         .unwrap()
         .current_dir(tmp.path())
@@ -68,11 +74,14 @@ cmd = "cwebp #{@}"
 #[test]
 fn dry_run_prints_rendered_command() {
     let tmp = TempDir::new().unwrap();
-    write_jk(&tmp, r#"
+    write_jk(
+        &tmp,
+        r#"
 shell = "bash"
 [encode]
 cmd = "magick #{1} #{2}"
-"#);
+"#,
+    );
     Command::cargo_bin("jk")
         .unwrap()
         .current_dir(tmp.path())
@@ -85,11 +94,14 @@ cmd = "magick #{1} #{2}"
 #[test]
 fn unknown_command_errors() {
     let tmp = TempDir::new().unwrap();
-    write_jk(&tmp, r#"
+    write_jk(
+        &tmp,
+        r#"
 shell = "bash"
 [hello]
 cmd = "echo hi"
-"#);
+"#,
+    );
     Command::cargo_bin("jk")
         .unwrap()
         .current_dir(tmp.path())
@@ -102,11 +114,14 @@ cmd = "echo hi"
 #[test]
 fn missing_arg_errors() {
     let tmp = TempDir::new().unwrap();
-    write_jk(&tmp, r#"
+    write_jk(
+        &tmp,
+        r#"
 shell = "bash"
 [encode]
 cmd = "magick #{1} #{2}"
-"#);
+"#,
+    );
     Command::cargo_bin("jk")
         .unwrap()
         .current_dir(tmp.path())
@@ -119,10 +134,13 @@ cmd = "magick #{1} #{2}"
 #[test]
 fn missing_shell_errors_at_config_load() {
     let tmp = TempDir::new().unwrap();
-    write_jk(&tmp, r#"
+    write_jk(
+        &tmp,
+        r#"
 [hello]
 cmd = "echo hi"
-"#);
+"#,
+    );
     Command::cargo_bin("jk")
         .unwrap()
         .current_dir(tmp.path())
@@ -133,13 +151,19 @@ cmd = "echo hi"
 
 #[test]
 fn exit_code_passthrough() {
-    if which::which("bash").is_err() { eprintln!("skip: bash not on PATH"); return; }
+    if which::which("bash").is_err() {
+        eprintln!("skip: bash not on PATH");
+        return;
+    }
     let tmp = TempDir::new().unwrap();
-    write_jk(&tmp, r#"
+    write_jk(
+        &tmp,
+        r#"
 shell = "bash"
 [fail42]
 cmd = "exit 42"
-"#);
+"#,
+    );
     Command::cargo_bin("jk")
         .unwrap()
         .current_dir(tmp.path())
@@ -150,13 +174,19 @@ cmd = "exit 42"
 
 #[test]
 fn sequence_fail_fast_returns_failed_step_code() {
-    if which::which("bash").is_err() { eprintln!("skip: bash not on PATH"); return; }
+    if which::which("bash").is_err() {
+        eprintln!("skip: bash not on PATH");
+        return;
+    }
     let tmp = TempDir::new().unwrap();
-    write_jk(&tmp, r#"
+    write_jk(
+        &tmp,
+        r#"
 shell = "bash"
 [seq]
 cmd = ["true", "exit 7", "echo should-not-run"]
-"#);
+"#,
+    );
     Command::cargo_bin("jk")
         .unwrap()
         .current_dir(tmp.path())
@@ -168,12 +198,15 @@ cmd = ["true", "exit 7", "echo should-not-run"]
 #[test]
 fn jk_quiet_suppresses_listing_header_only() {
     let tmp = TempDir::new().unwrap();
-    write_jk(&tmp, r#"
+    write_jk(
+        &tmp,
+        r#"
 shell = "pwsh"
 [hello]
 desc = "say hi"
 cmd = "echo hi"
-"#);
+"#,
+    );
     Command::cargo_bin("jk")
         .unwrap()
         .current_dir(tmp.path())
@@ -188,12 +221,15 @@ cmd = "echo hi"
 #[test]
 fn list_top_level_includes_configs_header() {
     let tmp = TempDir::new().unwrap();
-    write_jk(&tmp, r#"
+    write_jk(
+        &tmp,
+        r#"
 shell = "bash"
 [hello]
 desc = "say hi"
 cmd = "echo hi"
-"#);
+"#,
+    );
     Command::cargo_bin("jk")
         .unwrap()
         .current_dir(tmp.path())
@@ -208,12 +244,15 @@ cmd = "echo hi"
 #[test]
 fn list_namespace_does_not_repeat_configs_header() {
     let tmp = TempDir::new().unwrap();
-    write_jk(&tmp, r#"
+    write_jk(
+        &tmp,
+        r#"
 shell = "bash"
 [encode.jpg]
 desc = "encode jpg"
 cmd = "magick #{1}"
-"#);
+"#,
+    );
     Command::cargo_bin("jk")
         .unwrap()
         .current_dir(tmp.path())
@@ -227,12 +266,15 @@ cmd = "magick #{1}"
 #[test]
 fn jk_quiet_only_activates_on_exact_one() {
     let tmp = TempDir::new().unwrap();
-    write_jk(&tmp, r#"
+    write_jk(
+        &tmp,
+        r#"
 shell = "bash"
 [hello]
 desc = "say hi"
 cmd = "echo hi"
-"#);
+"#,
+    );
     Command::cargo_bin("jk")
         .unwrap()
         .current_dir(tmp.path())
@@ -253,11 +295,14 @@ cmd = "echo hi"
 #[test]
 fn double_dash_separator_passes_through_to_command() {
     let tmp = TempDir::new().unwrap();
-    write_jk(&tmp, r#"
+    write_jk(
+        &tmp,
+        r#"
 shell = "bash"
 [show]
 cmd = "echo #{1} #{2}"
-"#);
+"#,
+    );
     Command::cargo_bin("jk")
         .unwrap()
         .current_dir(tmp.path())
@@ -287,13 +332,16 @@ fn pwsh_passthrough_and_exit_code() {
         return;
     }
     let tmp = TempDir::new().unwrap();
-    write_jk(&tmp, r#"
+    write_jk(
+        &tmp,
+        r#"
 shell = "pwsh"
 [ok]
 cmd = "Write-Output ok"
 [fail7]
 cmd = "exit 7"
-"#);
+"#,
+    );
     Command::cargo_bin("jk")
         .unwrap()
         .current_dir(tmp.path())
@@ -313,7 +361,9 @@ cmd = "exit 7"
 #[test]
 fn dry_run_release_sequence_with_mixed_items() {
     let tmp = TempDir::new().unwrap();
-    write_jk(&tmp, r#"
+    write_jk(
+        &tmp,
+        r#"
 shell = "bash"
 [release]
 cmd = ["jk clean", "jk build", "jk package #{1}"]
@@ -323,7 +373,8 @@ cmd = "echo cleaned"
 cmd = "echo built"
 [package]
 cmd = "echo packaged #{1}"
-"#);
+"#,
+    );
     Command::cargo_bin("jk")
         .unwrap()
         .current_dir(tmp.path())
@@ -338,11 +389,14 @@ cmd = "echo packaged #{1}"
 #[test]
 fn dry_run_update_sequence_with_at_in_only_one_item() {
     let tmp = TempDir::new().unwrap();
-    write_jk(&tmp, r#"
+    write_jk(
+        &tmp,
+        r#"
 shell = "bash"
 [update]
 cmd = ["apt update", "apt upgrade #{@}"]
-"#);
+"#,
+    );
     Command::cargo_bin("jk")
         .unwrap()
         .current_dir(tmp.path())
@@ -356,7 +410,9 @@ cmd = ["apt update", "apt upgrade #{@}"]
 #[test]
 fn dry_run_release_too_many_args_errors() {
     let tmp = TempDir::new().unwrap();
-    write_jk(&tmp, r#"
+    write_jk(
+        &tmp,
+        r#"
 shell = "bash"
 [release]
 cmd = ["jk clean", "jk build", "jk package #{1}"]
@@ -366,7 +422,8 @@ cmd = "echo cleaned"
 cmd = "echo built"
 [package]
 cmd = "echo packaged #{1}"
-"#);
+"#,
+    );
     Command::cargo_bin("jk")
         .unwrap()
         .current_dir(tmp.path())
@@ -378,13 +435,19 @@ cmd = "echo packaged #{1}"
 
 #[test]
 fn event_lines_carry_local_timestamp() {
-    if which::which("bash").is_err() { eprintln!("skip: bash not on PATH"); return; }
+    if which::which("bash").is_err() {
+        eprintln!("skip: bash not on PATH");
+        return;
+    }
     let tmp = TempDir::new().unwrap();
-    write_jk(&tmp, r#"
+    write_jk(
+        &tmp,
+        r#"
 shell = "bash"
 [hello]
 cmd = "true"
-"#);
+"#,
+    );
     let assert = Command::cargo_bin("jk")
         .unwrap()
         .current_dir(tmp.path())
@@ -393,10 +456,17 @@ cmd = "true"
         .success();
 
     let stderr = String::from_utf8_lossy(&assert.get_output().stderr).to_string();
-    let ts_pat = predicate::str::is_match(r"\[jk\]\[\d{2}:\d{2}:\d{2}\.\d{3}\] running hello").unwrap();
-    let comp_pat = predicate::str::is_match(r"\[jk\]\[\d{2}:\d{2}:\d{2}\.\d{3}\] completed in \d+ms").unwrap();
-    assert!(ts_pat.eval(stderr.as_str()), "stderr missing running line: {stderr}");
-    assert!(comp_pat.eval(stderr.as_str()), "stderr missing completed line: {stderr}");
+    let step_pat = predicate::str::is_match(r"\[jk\]\[\d{2}:\d{2}:\d{2}\.\d{3}\] → true").unwrap();
+    let comp_pat =
+        predicate::str::is_match(r"\[jk\]\[\d{2}:\d{2}:\d{2}\.\d{3}\] completed in \d+ms").unwrap();
+    assert!(
+        step_pat.eval(stderr.as_str()),
+        "stderr missing step line: {stderr}"
+    );
+    assert!(
+        comp_pat.eval(stderr.as_str()),
+        "stderr missing completed line: {stderr}"
+    );
 }
 
 #[test]
