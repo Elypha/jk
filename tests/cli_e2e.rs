@@ -214,7 +214,7 @@ cmd = "echo hi"
         .assert()
         .success()
         .stderr(predicate::str::is_empty())
-        .stdout(predicate::str::contains("[jk] configs:").not())
+        .stdout(predicate::str::contains("jk configs:").not())
         .stdout(predicate::str::contains("hello"));
 }
 
@@ -235,7 +235,7 @@ cmd = "echo hi"
         .current_dir(tmp.path())
         .assert()
         .success()
-        .stdout(predicate::str::contains("[jk] configs:"))
+        .stdout(predicate::str::contains("jk configs:"))
         .stdout(predicate::str::contains("global:"))
         .stdout(predicate::str::contains("local:"))
         .stdout(predicate::str::contains("hello"));
@@ -259,7 +259,7 @@ cmd = "magick #{1}"
         .arg("encode")
         .assert()
         .success()
-        .stdout(predicate::str::contains("[jk] configs:").not())
+        .stdout(predicate::str::contains("jk configs:").not())
         .stdout(predicate::str::contains("jpg"));
 }
 

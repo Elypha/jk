@@ -1,14 +1,61 @@
 use crate::config::{CommandNode, Origin};
+use std::collections::BTreeMap;
+use std::fmt::Display;
 use std::io::{IsTerminal, Write};
 use std::path::Path;
 use std::sync::OnceLock;
 use time::{OffsetDateTime, UtcOffset};
 use unicode_width::UnicodeWidthStr;
 
-const PRIMARY: &str = "\x1b[38;2;209;224;222m";
-const MUTED: &str = "\x1b[38;2;174;178;176m";
-const WARNING: &str = "\x1b[38;2;255;213;0m";
-const RESET: &str = "\x1b[0m";
+const ANSI_PRIMARY: &str = "\x1b[38;2;135;215;255m";
+const ANSI_MUTED: &str = "\x1b[38;2;209;224;222m";
+const ANSI_WARNING: &str = "\x1b[38;2;255;213;0m";
+const ANSI_LOCAL: &str = "\x1b[38;2;163;231;245m";
+const ANSI_GLOBAL: &str = "\x1b[38;2;255;175;95m";
+const ANSI_UNDERLINE: &str = "\x1b[4m";
+const ANSI_RESET: &str = "\x1b[0m";
+
+#[derive(Clone, Copy)]
+enum Style {
+    Primary,
+    Muted,
+    Warning,
+    LocalOrigin,
+    GlobalOrigin,
+    Namespace,
+}
+
+impl Style {
+    fn open(self) -> &'static str {
+        match self {
+            Style::Primary => ANSI_PRIMARY,
+            Style::Muted => ANSI_MUTED,
+            Style::Warning => ANSI_WARNING,
+            Style::LocalOrigin => ANSI_LOCAL,
+            Style::GlobalOrigin => ANSI_GLOBAL,
+            Style::Namespace => ANSI_UNDERLINE,
+        }
+    }
+}
+
+#[derive(Clone, Copy)]
+struct Painter {
+    enabled: bool,
+}
+
+impl Painter {
+    fn new(enabled: bool) -> Self {
+        Self { enabled }
+    }
+
+    fn paint(self, style: Style, text: impl Display) -> String {
+        if self.enabled {
+            format!("{}{}{}", style.open(), text, ANSI_RESET)
+        } else {
+            text.to_string()
+        }
+    }
+}
 
 // Process-level cache for the local UTC offset. Written once by `init_local_offset()`
 // before any threads are spawned; `current_local()` reads it from then on.
@@ -44,39 +91,99 @@ fn paint_prefix(ts: &str) -> String {
 }
 
 fn fmt_step(ts: &str, cmd: &str, color: bool) -> String {
-    let body = format!("{} → {cmd}", paint_prefix(ts));
-    if color {
-        format!("{MUTED}{body}{RESET}")
-    } else {
-        body
-    }
+    let p = Painter::new(color);
+    format!(
+        "{}{}",
+        p.paint(Style::Muted, format!("{} → ", paint_prefix(ts))),
+        p.paint(Style::Primary, cmd),
+    )
 }
 
 fn fmt_completed(ts: &str, ms: u128, color: bool) -> String {
+    let p = Painter::new(color);
     let body = format!("{} completed in {ms}ms", paint_prefix(ts));
-    if color {
-        format!("{MUTED}{body}{RESET}")
-    } else {
-        body
-    }
+    p.paint(Style::Muted, body)
 }
 
 fn fmt_failed(ts: &str, step_idx: usize, exit: i32, color: bool) -> String {
+    let p = Painter::new(color);
     let body = format!("[jk][{ts}] failed at step {} (exit {})", step_idx + 1, exit);
-    if color {
-        format!("{WARNING}{body}{RESET}")
-    } else {
-        body
-    }
+    p.paint(Style::Warning, body)
 }
 
 fn fmt_error(msg: &str, color: bool) -> String {
+    let p = Painter::new(color);
     let body = format!("[jk] error: {msg}");
-    if color {
-        format!("{WARNING}{body}{RESET}")
-    } else {
-        body
+    p.paint(Style::Warning, body)
+}
+
+struct ListingEntry {
+    display: String,
+    origin: Option<Origin>,
+    desc: String,
+}
+
+impl ListingEntry {
+    fn marker(&self, needs_marker_col: bool) -> &'static str {
+        if !needs_marker_col {
+            return "";
+        }
+        match self.origin {
+            Some(Origin::GlobalOnly) => "(g) ",
+            Some(Origin::Override) => "(o) ",
+            Some(Origin::LocalOnly) | None => "    ",
+        }
     }
+
+    fn styled_label(&self, needs_marker_col: bool, painter: Painter) -> String {
+        let marker = self.marker(needs_marker_col);
+        match self.origin {
+            Some(Origin::LocalOnly) => {
+                painter.paint(Style::LocalOrigin, format!("{marker}{}", self.display))
+            }
+            Some(Origin::Override) => {
+                painter.paint(Style::Warning, format!("{marker}{}", self.display))
+            }
+            Some(Origin::GlobalOnly) => {
+                painter.paint(Style::GlobalOrigin, format!("{marker}{}", self.display))
+            }
+            None => format!("{marker}{}", painter.paint(Style::Namespace, &self.display)),
+        }
+    }
+
+    fn width(&self) -> usize {
+        UnicodeWidthStr::width(self.display.as_str())
+    }
+}
+
+fn listing_entries(children: &BTreeMap<String, CommandNode>) -> Vec<ListingEntry> {
+    children
+        .iter()
+        .map(|(k, v)| {
+            let (display, origin, desc) = match v {
+                CommandNode::Namespace(_) => (format!("{}/", k), None, String::new()),
+                CommandNode::Leaf(l) => (
+                    k.clone(),
+                    Some(l.origin),
+                    l.desc.clone().unwrap_or_default(),
+                ),
+            };
+            ListingEntry {
+                display,
+                origin,
+                desc,
+            }
+        })
+        .collect()
+}
+
+fn command_header(path: &[String]) -> String {
+    let prefix = if path.is_empty() {
+        "jk".to_string()
+    } else {
+        format!("jk {}", path.join(" "))
+    };
+    format!("{prefix} commands:")
 }
 
 pub struct Out {
@@ -173,103 +280,49 @@ impl Out {
 
     /// Print a command listing to stdout.
     ///
-    /// The `[jk] configs:` header is printed only for root listings (`path` is empty)
+    /// The `jk configs:` header is printed only for root listings (`path` is empty)
     /// and suppressed under `JK_QUIET=1`. The command list itself is always printed
     /// (it is data, not decoration), so scripts and CI can rely on bare output.
     pub fn print_listing(
         &self,
         path: &[String],
-        children: &std::collections::BTreeMap<String, CommandNode>,
+        children: &BTreeMap<String, CommandNode>,
         header_global: Option<&Path>,
         header_local: Option<&Path>,
     ) {
         let mut s = std::io::stdout().lock();
+        let painter = Painter::new(self.stdout_color);
 
         if path.is_empty() && !self.quiet {
-            let bracket = if self.stdout_color {
-                format!("{PRIMARY}[jk]{RESET}")
-            } else {
-                "[jk]".to_string()
-            };
-            let _ = writeln!(s, "{} configs:", bracket);
+            let _ = writeln!(s, "{}", painter.paint(Style::Primary, "jk configs:"));
             let _ = writeln!(s, "  global: {}", display_path_or_none(header_global));
             let _ = writeln!(s, "  local:  {}", display_path_or_none(header_local));
             let _ = writeln!(s);
         }
 
-        let prefix = if path.is_empty() {
-            "jk".to_string()
+        let commands_header = command_header(path);
+        let commands_header = if path.is_empty() {
+            painter.paint(Style::Primary, commands_header)
         } else {
-            format!("jk {}", path.join(" "))
+            commands_header
         };
-        let _ = writeln!(s, "{} commands:", prefix);
+        let _ = writeln!(s, "{commands_header}");
 
-        let needs_marker_col = children.values().any(|n| match n {
-            CommandNode::Leaf(l) => l.origin != Origin::LocalOnly,
-            CommandNode::Namespace(_) => false,
-        });
-
-        struct Entry {
-            display: String,
-            origin: Option<Origin>,
-            desc: String,
-        }
-        let entries: Vec<Entry> = children
+        let entries = listing_entries(children);
+        let needs_marker_col = entries
             .iter()
-            .map(|(k, v)| {
-                let (display, origin, desc) = match v {
-                    CommandNode::Namespace(_) => (format!("{}/", k), None, String::new()),
-                    CommandNode::Leaf(l) => (
-                        k.clone(),
-                        Some(l.origin),
-                        l.desc.clone().unwrap_or_default(),
-                    ),
-                };
-                Entry {
-                    display,
-                    origin,
-                    desc,
-                }
-            })
-            .collect();
+            .any(|e| matches!(e.origin, Some(Origin::GlobalOnly | Origin::Override)));
 
-        // Use display width (not byte length) for correct alignment with CJK names.
-        let max_w = entries
-            .iter()
-            .map(|e| UnicodeWidthStr::width(e.display.as_str()))
-            .max()
-            .unwrap_or(0);
+        let max_w = entries.iter().map(ListingEntry::width).max().unwrap_or(0);
 
         for e in &entries {
-            let pad = max_w.saturating_sub(UnicodeWidthStr::width(e.display.as_str()));
-
-            let marker = if needs_marker_col {
-                match e.origin {
-                    Some(Origin::GlobalOnly) => "(g) ",
-                    Some(Origin::Override) => "(o) ",
-                    Some(Origin::LocalOnly) | None => "    ",
-                }
-            } else {
-                ""
-            };
-
-            let (open, close) = if self.stdout_color {
-                match e.origin {
-                    Some(Origin::LocalOnly) => ("\x1b[38;5;117m", "\x1b[0m"),
-                    Some(Origin::Override) => ("\x1b[38;5;215m", "\x1b[0m"),
-                    Some(Origin::GlobalOnly) | None => ("", ""),
-                }
-            } else {
-                ("", "")
-            };
+            let label = e.styled_label(needs_marker_col, painter);
+            let pad = max_w.saturating_sub(e.width());
 
             let _ = writeln!(
                 s,
-                "  {open}{marker}{display}{close}{pad_spaces}   {desc}",
-                open = open,
-                marker = marker,
-                display = e.display,
-                close = close,
+                "  {label}{pad_spaces}   {desc}",
+                label = label,
                 pad_spaces = " ".repeat(pad),
                 desc = e.desc,
             );
@@ -338,11 +391,11 @@ mod tests {
     }
 
     #[test]
-    fn fmt_step_color_is_single_muted_line() {
+    fn fmt_step_color_splits_prefix_and_command() {
         let s = fmt_step("16:45:02.103", "cd src && cargo build --release", true);
         assert_eq!(
             s,
-            "\x1b[38;2;174;178;176m[jk][16:45:02.103] → cd src && cargo build --release\x1b[0m"
+            "\x1b[38;2;209;224;222m[jk][16:45:02.103] → \x1b[0m\x1b[38;2;135;215;255mcd src && cargo build --release\x1b[0m"
         );
     }
 
@@ -359,7 +412,7 @@ mod tests {
         let s = fmt_completed("16:45:02.421", 318, true);
         assert_eq!(
             s,
-            "\x1b[38;2;174;178;176m[jk][16:45:02.421] completed in 318ms\x1b[0m"
+            "\x1b[38;2;209;224;222m[jk][16:45:02.421] completed in 318ms\x1b[0m"
         );
     }
 
@@ -414,6 +467,41 @@ mod tests {
         assert!(
             inner.contains("[jk] error: config path invalid: /tmp/nope"),
             "got inner: {inner}"
+        );
+    }
+
+    #[test]
+    fn listing_label_applies_semantic_styles() {
+        let p = Painter::new(true);
+
+        let local = ListingEntry {
+            display: "local".into(),
+            origin: Some(Origin::LocalOnly),
+            desc: String::new(),
+        };
+        assert_eq!(
+            local.styled_label(true, p),
+            format!("{ANSI_LOCAL}    local{ANSI_RESET}")
+        );
+
+        let global = ListingEntry {
+            display: "global".into(),
+            origin: Some(Origin::GlobalOnly),
+            desc: String::new(),
+        };
+        assert_eq!(
+            global.styled_label(true, p),
+            format!("{ANSI_GLOBAL}(g) global{ANSI_RESET}")
+        );
+
+        let namespace = ListingEntry {
+            display: "tools/".into(),
+            origin: None,
+            desc: String::new(),
+        };
+        assert_eq!(
+            namespace.styled_label(true, p),
+            format!("    {ANSI_UNDERLINE}tools/{ANSI_RESET}")
         );
     }
 

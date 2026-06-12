@@ -71,7 +71,7 @@ cmd = "echo l-shared"
 
     let stdout = String::from_utf8(assert.get_output().stdout.clone()).unwrap();
 
-    assert!(stdout.contains("[jk] configs:"), "missing header marker:\n{stdout}");
+    assert!(stdout.contains("jk configs:"), "missing header marker:\n{stdout}");
     assert!(stdout.contains("global: "), "missing global header line:\n{stdout}");
     assert!(stdout.contains("local:  "), "missing local header line:\n{stdout}");
     assert!(
