@@ -11,8 +11,11 @@ const ANSI_PRIMARY: &str = "\x1b[38;2;135;215;255m";
 const ANSI_MUTED: &str = "\x1b[38;2;209;224;222m";
 const ANSI_WARNING: &str = "\x1b[38;2;255;213;0m";
 const ANSI_LOCAL: &str = "\x1b[38;2;163;231;245m";
-const ANSI_GLOBAL: &str = "\x1b[38;2;255;175;95m";
-const ANSI_UNDERLINE: &str = "\x1b[4m";
+const ANSI_GLOBAL: &str = "\x1b[38;2;240;190;138m";
+const ANSI_LOCAL_NAMESPACE: &str = "\x1b[38;2;163;231;245m\x1b[4m";
+const ANSI_GLOBAL_NAMESPACE: &str = "\x1b[38;2;240;190;138m\x1b[4m";
+const ANSI_DIM: &str = "\x1b[2m";
+const ANSI_DIM_STRIKETHROUGH: &str = "\x1b[2;9m";
 const ANSI_RESET: &str = "\x1b[0m";
 
 #[derive(Clone, Copy)]
@@ -22,7 +25,10 @@ enum Style {
     Warning,
     LocalOrigin,
     GlobalOrigin,
-    Namespace,
+    LocalNamespace,
+    GlobalNamespace,
+    Dim,
+    DimStrikethrough,
 }
 
 impl Style {
@@ -33,7 +39,10 @@ impl Style {
             Style::Warning => ANSI_WARNING,
             Style::LocalOrigin => ANSI_LOCAL,
             Style::GlobalOrigin => ANSI_GLOBAL,
-            Style::Namespace => ANSI_UNDERLINE,
+            Style::LocalNamespace => ANSI_LOCAL_NAMESPACE,
+            Style::GlobalNamespace => ANSI_GLOBAL_NAMESPACE,
+            Style::Dim => ANSI_DIM,
+            Style::DimStrikethrough => ANSI_DIM_STRIKETHROUGH,
         }
     }
 }
@@ -117,73 +126,137 @@ fn fmt_error(msg: &str, color: bool) -> String {
     p.paint(Style::Warning, body)
 }
 
+#[derive(Clone, Copy)]
+enum ListingSection {
+    Global,
+    Local,
+}
+
+impl ListingSection {
+    fn includes(self, origin: Origin) -> bool {
+        match self {
+            Self::Global => matches!(origin, Origin::GlobalOnly | Origin::Override),
+            Self::Local => matches!(origin, Origin::LocalOnly | Origin::Override),
+        }
+    }
+
+    fn name(self) -> &'static str {
+        match self {
+            Self::Global => "global",
+            Self::Local => "local",
+        }
+    }
+}
+
 struct ListingEntry {
+    depth: usize,
     display: String,
     origin: Option<Origin>,
     desc: String,
 }
 
 impl ListingEntry {
-    fn marker(&self, needs_marker_col: bool) -> &'static str {
-        if !needs_marker_col {
-            return "";
-        }
+    fn is_override_placeholder(&self, section: ListingSection) -> bool {
+        matches!(section, ListingSection::Global) && self.origin == Some(Origin::Override)
+    }
+
+    fn styled_label(&self, section: ListingSection, painter: Painter) -> String {
+        let indent = "    ".repeat(self.depth);
         match self.origin {
-            Some(Origin::GlobalOnly) => "(g) ",
-            Some(Origin::Override) => "(o) ",
-            Some(Origin::LocalOnly) | None => "    ",
+            Some(Origin::LocalOnly) => {
+                format!(
+                    "{indent}{}",
+                    painter.paint(Style::LocalOrigin, &self.display)
+                )
+            }
+            Some(Origin::Override) => {
+                let style = if self.is_override_placeholder(section) {
+                    Style::DimStrikethrough
+                } else {
+                    Style::Warning
+                };
+                format!("{indent}{}", painter.paint(style, &self.display))
+            }
+            Some(Origin::GlobalOnly) => {
+                format!(
+                    "{indent}{}",
+                    painter.paint(Style::GlobalOrigin, &self.display)
+                )
+            }
+            None => {
+                let style = match section {
+                    ListingSection::Global => Style::GlobalNamespace,
+                    ListingSection::Local => Style::LocalNamespace,
+                };
+                format!("{indent}{}", painter.paint(style, &self.display))
+            }
         }
     }
 
-    fn styled_label(&self, needs_marker_col: bool, painter: Painter) -> String {
-        let marker = self.marker(needs_marker_col);
-        match self.origin {
-            Some(Origin::LocalOnly) => {
-                painter.paint(Style::LocalOrigin, format!("{marker}{}", self.display))
-            }
-            Some(Origin::Override) => {
-                painter.paint(Style::Warning, format!("{marker}{}", self.display))
-            }
-            Some(Origin::GlobalOnly) => {
-                painter.paint(Style::GlobalOrigin, format!("{marker}{}", self.display))
-            }
-            None => format!("{marker}{}", painter.paint(Style::Namespace, &self.display)),
+    fn styled_desc(&self, section: ListingSection, painter: Painter) -> String {
+        if self.is_override_placeholder(section) {
+            painter.paint(Style::Dim, &self.desc)
+        } else {
+            self.desc.clone()
         }
     }
 
     fn width(&self) -> usize {
-        UnicodeWidthStr::width(self.display.as_str())
+        self.depth * 4 + UnicodeWidthStr::width(self.display.as_str())
     }
 }
 
-fn listing_entries(children: &BTreeMap<String, CommandNode>) -> Vec<ListingEntry> {
-    children
-        .iter()
-        .map(|(k, v)| {
-            let (display, origin, desc) = match v {
-                CommandNode::Namespace(_) => (format!("{}/", k), None, String::new()),
-                CommandNode::Leaf(l) => (
-                    k.clone(),
-                    Some(l.origin),
-                    l.desc.clone().unwrap_or_default(),
-                ),
+fn listing_entries(
+    children: &BTreeMap<String, CommandNode>,
+    section: ListingSection,
+) -> Vec<ListingEntry> {
+    fn collect(
+        children: &BTreeMap<String, CommandNode>,
+        section: ListingSection,
+        depth: usize,
+        entries: &mut Vec<ListingEntry>,
+    ) {
+        // Groups come first at every level; BTreeMap keeps each kind alphabetical.
+        for (name, node) in children {
+            let CommandNode::Namespace(grandchildren) = node else {
+                continue;
             };
-            ListingEntry {
-                display,
-                origin,
-                desc,
+            let namespace_index = entries.len();
+            entries.push(ListingEntry {
+                depth,
+                display: format!("{name}/"),
+                origin: None,
+                desc: String::new(),
+            });
+            collect(grandchildren, section, depth + 1, entries);
+            if entries.len() == namespace_index + 1 {
+                entries.pop();
             }
-        })
-        .collect()
-}
+        }
 
-fn command_header(path: &[String]) -> String {
-    let prefix = if path.is_empty() {
-        "jk".to_string()
-    } else {
-        format!("jk {}", path.join(" "))
-    };
-    format!("{prefix} commands:")
+        for (name, node) in children {
+            if let CommandNode::Leaf(leaf) = node {
+                if section.includes(leaf.origin) {
+                    entries.push(ListingEntry {
+                        depth,
+                        display: name.clone(),
+                        origin: Some(leaf.origin),
+                        desc: if matches!(section, ListingSection::Global)
+                            && leaf.origin == Origin::Override
+                        {
+                            "-> local".to_string()
+                        } else {
+                            leaf.desc.clone().unwrap_or_default()
+                        },
+                    });
+                }
+            }
+        }
+    }
+
+    let mut entries = Vec::new();
+    collect(children, section, 0, &mut entries);
+    entries
 }
 
 pub struct Out {
@@ -200,22 +273,8 @@ impl Out {
         let color_var = std::env::var("JK_NO_COLOR").ok();
         let stderr_tty = std::io::stderr().is_terminal();
         let stdout_tty = std::io::stdout().is_terminal();
-        Self::from_env_parts(
-            quiet_var.as_deref(),
-            color_var.as_deref(),
-            stderr_tty,
-            stdout_tty,
-        )
-    }
-
-    pub fn from_env_parts(
-        quiet_var: Option<&str>,
-        color_var: Option<&str>,
-        stderr_tty: bool,
-        stdout_tty: bool,
-    ) -> Self {
-        let quiet = quiet_var == Some("1");
-        let force_no_color = color_var == Some("1");
+        let quiet = quiet_var.as_deref() == Some("1");
+        let force_no_color = color_var.as_deref() == Some("1");
         Self {
             quiet,
             color: !force_no_color && stderr_tty,
@@ -265,9 +324,9 @@ impl Out {
 
     /// Print a command listing to stdout.
     ///
-    /// The `jk configs:` header is printed only for root listings (`path` is empty)
-    /// and suppressed under `JK_QUIET=1`. The command list itself is always printed
-    /// (it is data, not decoration), so scripts and CI can rely on bare output.
+    /// Commands are grouped by their effective global/local origin and namespaces
+    /// are expanded recursively. `JK_QUIET=1` keeps the source sections but omits
+    /// their config paths.
     pub fn print_listing(
         &self,
         path: &[String],
@@ -278,39 +337,58 @@ impl Out {
         let mut s = std::io::stdout().lock();
         let painter = Painter::new(self.stdout_color);
 
-        if path.is_empty() && !self.quiet {
-            let _ = writeln!(s, "{}", painter.paint(Style::Primary, "jk configs:"));
-            let _ = writeln!(s, "  global: {}", display_path_or_none(header_global));
-            let _ = writeln!(s, "  local:  {}", display_path_or_none(header_local));
-            let _ = writeln!(s);
-        }
-
-        let commands_header = command_header(path);
-        let commands_header = if path.is_empty() {
-            painter.paint(Style::Primary, commands_header)
-        } else {
-            commands_header
-        };
-        let _ = writeln!(s, "{commands_header}");
-
-        let entries = listing_entries(children);
-        let needs_marker_col = entries
+        let sections = [
+            (
+                ListingSection::Global,
+                listing_entries(children, ListingSection::Global),
+            ),
+            (
+                ListingSection::Local,
+                listing_entries(children, ListingSection::Local),
+            ),
+        ];
+        let max_w = sections
             .iter()
-            .any(|e| matches!(e.origin, Some(Origin::GlobalOnly | Origin::Override)));
+            .flat_map(|(_, entries)| entries)
+            .map(ListingEntry::width)
+            .max()
+            .unwrap_or(0);
 
-        let max_w = entries.iter().map(ListingEntry::width).max().unwrap_or(0);
+        for (section, entries) in &sections {
+            if !path.is_empty() && entries.is_empty() {
+                continue;
+            }
 
-        for e in &entries {
-            let label = e.styled_label(needs_marker_col, painter);
-            let pad = max_w.saturating_sub(e.width());
+            let heading = if self.quiet {
+                format!("--- {} commands ---", section.name())
+            } else {
+                let section_path = match section {
+                    ListingSection::Global => header_global,
+                    ListingSection::Local => header_local,
+                };
+                format!(
+                    "--- {} commands: {} ---",
+                    section.name(),
+                    display_path_or_none(section_path)
+                )
+            };
+            let _ = writeln!(s, "{}", painter.paint(Style::Primary, heading));
 
-            let _ = writeln!(
-                s,
-                "  {label}{pad_spaces}   {desc}",
-                label = label,
-                pad_spaces = " ".repeat(pad),
-                desc = e.desc,
-            );
+            for entry in entries {
+                let label = entry.styled_label(*section, painter);
+                if entry.desc.is_empty() {
+                    let _ = writeln!(s, "{label}");
+                    continue;
+                }
+
+                let pad = max_w.saturating_sub(entry.width());
+                let desc = entry.styled_desc(*section, painter);
+                let _ = writeln!(
+                    s,
+                    "{label}{pad_spaces}   {desc}",
+                    pad_spaces = " ".repeat(pad),
+                );
+            }
         }
     }
 }

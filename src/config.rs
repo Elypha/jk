@@ -22,9 +22,9 @@ pub enum CommandNode {
 }
 
 /// Origin of a leaf in the merged command tree, used by listing to render
-/// `(g)` / `(o)` / no marker. `parse_str` defaults to `LocalOnly`; callers
-/// apply `tag_all_origins` after loading the global config, and `merge`
-/// sets `Override` on colliding leaves.
+/// source and override state. `parse_str` defaults to `LocalOnly`; callers apply
+/// `tag_all_origins` after loading the global config, and `merge` sets
+/// `Override` on colliding leaves.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Origin {
     LocalOnly,

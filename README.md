@@ -63,8 +63,16 @@ docker run --rm -it
 Namespaces (any depth) - `jk encode` lists encode/*
 
 ```toml
-[encode.jpg]
-cmd = "magick #{1} -quality 90 #{2}"
+[encode]
+
+jpg = {
+  desc = "encode JPG",
+  cmd = '''
+    magick #{1}
+      -quality 90
+      #{2}
+  ''',
+}
 # jk encode jpg in.tiff out.jpg
 ```
 
@@ -107,7 +115,7 @@ cargo install --git https://github.com/Elypha/jk --locked
 - You name the shell (`bash`, `pwsh`, `fish`, `zsh`, `sh`) per file, with optional per-leaf override.
 - Each sequence item is an independent child process - state (cwd, `$(...)` results, shell variables) does **not** carry between items.
 - Child-shell exit codes pass through losslessly, so `jk a && jk b` composes naturally.
-- jk looks for `.jk` walking up from cwd. `~/.jk/config.toml` provides global commands; local entries with the same name override global.
+- jk looks for `.jk` walking up from cwd. `~/.jk/config.toml` provides global commands; listings show global and local commands in separate, recursively expanded sections, with groups before individual commands. Local entries with the same name override global.
 
 jk's own flags (all listed below) are prefixed `++` so they never collide with your underlying command's flags:
 
