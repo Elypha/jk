@@ -152,7 +152,7 @@ struct ListingEntry {
     depth: usize,
     display: String,
     origin: Option<Origin>,
-    desc: String,
+    desc: Vec<String>,
 }
 
 impl ListingEntry {
@@ -193,11 +193,16 @@ impl ListingEntry {
         }
     }
 
-    fn styled_desc(&self, section: ListingSection, painter: Painter) -> String {
+    fn styled_desc(
+        &self,
+        line: &str,
+        section: ListingSection,
+        painter: Painter,
+    ) -> String {
         if self.is_override_placeholder(section) {
-            painter.paint(Style::Dim, &self.desc)
+            painter.paint(Style::Dim, line)
         } else {
-            self.desc.clone()
+            line.to_string()
         }
     }
 
@@ -226,7 +231,7 @@ fn listing_entries(
                 depth,
                 display: format!("{name}/"),
                 origin: None,
-                desc: String::new(),
+                desc: Vec::new(),
             });
             collect(grandchildren, section, depth + 1, entries);
             if entries.len() == namespace_index + 1 {
@@ -244,9 +249,9 @@ fn listing_entries(
                         desc: if matches!(section, ListingSection::Global)
                             && leaf.origin == Origin::Override
                         {
-                            "-> local".to_string()
+                            vec!["-> local".to_string()]
                         } else {
-                            leaf.desc.clone().unwrap_or_default()
+                            leaf.desc.clone()
                         },
                     });
                 }
@@ -382,12 +387,18 @@ impl Out {
                 }
 
                 let pad = max_w.saturating_sub(entry.width());
-                let desc = entry.styled_desc(*section, painter);
-                let _ = writeln!(
-                    s,
-                    "{label}{pad_spaces}   {desc}",
-                    pad_spaces = " ".repeat(pad),
-                );
+                for (i, line) in entry.desc.iter().enumerate() {
+                    let desc = entry.styled_desc(line, *section, painter);
+                    if i == 0 {
+                        let _ = writeln!(
+                            s,
+                            "{label}{pad_spaces}   {desc}",
+                            pad_spaces = " ".repeat(pad),
+                        );
+                    } else {
+                        let _ = writeln!(s, "{indent}{desc}", indent = " ".repeat(max_w + 3));
+                    }
+                }
             }
         }
     }

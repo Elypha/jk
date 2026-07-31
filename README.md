@@ -60,6 +60,17 @@ docker run --rm -it
 # jk docker-sh
 ```
 
+Multi-line descriptions - each array item is one displayed line
+
+```toml
+[release]
+desc = [
+  "$ jk release 0.1.0",
+  "Bump version, create a tag, and start the draft release workflow",
+]
+cmd = "./release.sh #{1}"
+```
+
 Namespaces (any depth) - `jk encode` lists encode/*
 
 ```toml

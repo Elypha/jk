@@ -34,7 +34,7 @@ pub enum Origin {
 
 #[derive(Debug, Clone)]
 pub struct LeafCommand {
-    pub desc: Option<String>,
+    pub desc: Vec<String>,
     pub shell: Shell,
     pub cmd: CmdBody,
     pub origin: Origin,
@@ -244,9 +244,25 @@ fn build_node(path_for_err: &str, value: toml::Value, file_shell: Option<Shell>)
     if has_cmd {
         // leaf
         let desc = match table.get("desc") {
-            Some(toml::Value::String(s)) => Some(s.clone()),
-            None => None,
-            _ => return Err(JkError::ConfigSchema(format!("'{}'.desc must be string", path_for_err))),
+            Some(toml::Value::String(s)) => vec![s.clone()],
+            Some(toml::Value::Array(arr)) => {
+                let mut lines = Vec::new();
+                for (i, item) in arr.iter().enumerate() {
+                    let toml::Value::String(line) = item else {
+                        return Err(JkError::ConfigSchema(format!(
+                            "'{path_for_err}'.desc[{i}] must be string"
+                        )));
+                    };
+                    lines.push(line.clone());
+                }
+                lines
+            }
+            None => Vec::new(),
+            _ => {
+                return Err(JkError::ConfigSchema(format!(
+                    "'{path_for_err}'.desc must be string or array of strings"
+                )))
+            }
         };
         let shell: Option<Shell> = match table.get("shell") {
             Some(toml::Value::String(s)) => Some(
