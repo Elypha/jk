@@ -12,6 +12,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
 
       - name: Check tag matches Cargo.toml version
         run: |
@@ -23,10 +25,19 @@ jobs:
             exit 1
           fi
 
-      - name: Create draft release with auto-generated notes
+      - name: Generate release notes from commits
+        uses: orhun/git-cliff-action@v4
+        with:
+          config: .github/cliff.toml
+          args: -vv --latest --strip header
+        env:
+          OUTPUT: RELEASE_NOTES.md
+          GITHUB_REPO: ${{ github.repository }}
+
+      - name: Create draft release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh release create "${GITHUB_REF#refs/tags/}" --draft --generate-notes
+        run: gh release create "${GITHUB_REF#refs/tags/}" --draft --notes-file RELEASE_NOTES.md
 
   build:
     needs: preflight
