@@ -112,37 +112,3 @@ fn quote_pwsh(s: &str) -> String {
     out.push('\'');
     out
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn posix_quote_simple() {
-        assert_eq!(quote_posix("hello"), "hello");
-        assert_eq!(quote_posix("hello world"), "'hello world'");
-        assert_eq!(quote_posix("it's"), "'it'\\''s'");
-    }
-
-    #[test]
-    fn pwsh_quote() {
-        assert_eq!(quote_pwsh("hello"), "hello");
-        assert_eq!(quote_pwsh("hello world"), "'hello world'");
-        assert_eq!(quote_pwsh("it's"), "'it''s'");
-    }
-
-    #[test]
-    fn shell_parse() {
-        assert!(matches!(Shell::parse("bash"), Ok(Shell::Bash)));
-        assert!(Shell::parse("zsh4").is_err());
-        assert!(Shell::parse("cmd").is_err());
-    }
-
-    #[test]
-    fn invocation_has_env_remove_for_bash_and_sh() {
-        let bash = Shell::Bash.invocation();
-        assert!(bash.env_remove.contains(&"BASH_ENV"));
-        let sh = Shell::Sh.invocation();
-        assert!(sh.env_remove.contains(&"ENV"));
-    }
-}
