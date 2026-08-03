@@ -78,9 +78,11 @@ ffmpeg -i in.mp4 -preset slow out.mp4
 | Namespace | Table containing child tables only |
 | `cmd` | Non-empty string or non-empty string array |
 | `desc` | String or string array |
-| `shell` | `bash`, `sh`, `zsh`, `pwsh`, or `fish` |
+| `shell` | `bash`, `sh`, `zsh`, `pwsh`, `fish`, or `bun` |
 
 A leaf `shell` overrides the file `shell`. Each `desc` array item displays on a separate line.
+
+On Windows, `bash` uses the Bash bundled with Git for Windows; on other platforms it uses the native `bash` on `PATH`. `bun` selects Bun Shell, which is cross-platform and bash-like but not fully Bash- or POSIX-compatible.
 
 Multiline commands are folded: blank lines are removed, each line is trimmed, and the lines join with spaces.
 
@@ -104,3 +106,4 @@ Within each sequence item, `#{@}` starts after that item's highest numbered plac
 - The sequence stops at the first non-zero exit.
 - `jk` returns the child exit code.
 - Shell profiles are disabled where supported.
+- Bun `.env` loading and `BUN_OPTIONS` are disabled so they cannot change the selected command environment.

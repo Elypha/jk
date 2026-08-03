@@ -1,10 +1,14 @@
 use crate::error::{JkError, JkResult};
 use crate::output::Out;
-use crate::shell::Shell;
+use crate::shell::{Shell, ShellInvocation};
 
 pub fn run_one(rendered_cmd: &str, shell: Shell) -> JkResult<i32> {
-    let inv = shell.invocation();
-    let mut cmd = std::process::Command::new(inv.program);
+    let inv = shell.invocation()?;
+    run_one_with_invocation(rendered_cmd, &inv)
+}
+
+fn run_one_with_invocation(rendered_cmd: &str, inv: &ShellInvocation) -> JkResult<i32> {
+    let mut cmd = std::process::Command::new(&inv.program);
     cmd.args(inv.args);
     cmd.arg(rendered_cmd);
     for k in inv.env_remove {
@@ -12,7 +16,7 @@ pub fn run_one(rendered_cmd: &str, shell: Shell) -> JkResult<i32> {
     }
     let status = cmd
         .status()
-        .map_err(|e| JkError::SpawnFailed(format!("'{}': {}", inv.program, e)))?;
+        .map_err(|e| JkError::SpawnFailed(format!("'{}': {}", inv.program.display(), e)))?;
     Ok(exit_code_from_status(status))
 }
 
@@ -36,10 +40,11 @@ fn exit_code_from_status(status: std::process::ExitStatus) -> i32 {
 
 pub fn run_sequence(rendered_cmds: &[String], shell: Shell, out: &Out) -> JkResult<i32> {
     let start = std::time::Instant::now();
+    let inv = shell.invocation()?;
 
     for (idx, cmd) in rendered_cmds.iter().enumerate() {
         out.step_header(cmd);
-        let exit = run_one(cmd, shell)?;
+        let exit = run_one_with_invocation(cmd, &inv)?;
         if exit != 0 {
             out.failed(idx, exit);
             return Ok(exit);

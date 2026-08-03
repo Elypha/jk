@@ -21,7 +21,8 @@
         "sh",
         "zsh",
         "pwsh",
-        "fish"
+        "fish",
+        "bun"
       ]
     },
     "command": {

@@ -30,10 +30,10 @@ cmd = "cargo build --release"
 desc = "$ jk media x264 INPUT OUTPUT [FFMPEG_ARGS...]"
 cmd = '''
 ffmpeg -i #{1}
-  -c:v libx264
-  #{@}
-  -c:a aac -b:a 128k
-  #{2}
+    -c:v libx264
+    #{@}
+    -c:a aac -b:a 128k
+    #{2}
 '''
 ```
 
@@ -46,7 +46,16 @@ $ jk media x264 in.mp4 out.mp4 -preset slow ++dry-run
 ffmpeg -i in.mp4 -c:v libx264 -preset slow -c:a aac -b:a 128k out.mp4
 ```
 
-`desc` appears in command listings. `#{1}` and `#{2}` select positional arguments; `#{@}` inserts the rest. jk quotes them for the selected shell.
+Quick notes:
+
+1. `shell` accepts `bash`, `sh`, `zsh`, `pwsh`, `fish`, or `bun`.
+    - `bash` on Windows uses Git for Windows `<Git>/bin/bash.exe` (MSYS path conversion still applies).
+    - `bash` on other platforms uses the native `bash` on `PATH`.
+    - `pwsh` is .NET PowerShell Core (Windows/Linux/macOS), not Windows PowerShell (`powershell.exe`).
+    - `bun` uses [Bun Shell](https://bun.com/docs/runtime/shell) through `bun exec`, providing a cross-platform, bash-like shell.
+2. `desc` is used for command listings.
+3. `#{1}` and `#{2}` select positional arguments, and `#{@}` inserts the rest.
+    - jk quotes `#{}` injection for the selected shell. See [Raw shell syntax](#raw-shell-syntax) if you don't want quoting.
 
 ## More patterns
 
@@ -55,12 +64,12 @@ ffmpeg -i in.mp4 -c:v libx264 -preset slow -c:a aac -b:a 128k out.mp4
 ```toml
 [release]
 desc = [
-  "$ jk release VERSION",
-  "test, then publish",
+    "$ jk release VERSION",
+    "test, then publish",
 ]
 cmd = [
-  "cargo test",
-  "./release.sh #{1}",
+    "cargo test",
+    "./release.sh #{1}",
 ]
 ```
 
@@ -84,7 +93,7 @@ shell = "pwsh"
 cmd = "Get-Process | Select-Object Name, CPU"
 ```
 
-`shell` accepts `bash`, `sh`, `zsh`, `pwsh`, or `fish`. A command-level value overrides the file-level value.
+A command-level value overrides the file-level value.
 
 ## Install
 
@@ -116,6 +125,7 @@ Tech details:
 
 - Child-shell exit codes pass through losslessly, so `jk a && jk b` composes naturally.
 - jk looks for `.jk` walking up from cwd. `~/.jk/config.toml` provides global commands; listings show global and local commands in separate, recursively expanded sections, with groups before individual commands. Local entries with the same name override global.
+- Write long commands in a readable way. jk joins each `cmd` into a one-line string.
 
 jk's own flags (all listed below) are prefixed `++` so they never collide with your underlying command's flags:
 
