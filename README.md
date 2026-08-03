@@ -19,6 +19,8 @@ The string you wrote in `.jk`, after placeholder substitution, is what gets hand
 Create `.jk` in your project root. The file uses TOML 1.1:
 
 ```toml
+#:schema https://raw.githubusercontent.com/Elypha/jk/master/schema/jk.schema.json
+
 shell = "bash"
 
 [build]

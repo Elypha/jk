@@ -1,0 +1,162 @@
+{
+  "$schema": "http://json-schema.org/draft-04/schema#",
+  "title": "jk configuration",
+  "description": "Commands and namespaces for the jk alias runner.",
+  "type": "object",
+  "oneOf": [
+    {
+      "$ref": "#/definitions/configWithDefaultShell"
+    },
+    {
+      "$ref": "#/definitions/configWithPerCommandShell"
+    }
+  ],
+  "x-tombi-toml-version": "v1.1.0",
+  "definitions": {
+    "shell": {
+      "type": "string",
+      "description": "Shell used to execute the command.",
+      "enum": [
+        "bash",
+        "sh",
+        "zsh",
+        "pwsh",
+        "fish"
+      ]
+    },
+    "command": {
+      "type": "string",
+      "description": "Shell command template. Supports #{N}, #{@}, #{N!}, and #{@!} placeholders.",
+      "pattern": "\\S"
+    },
+    "commandBody": {
+      "description": "One command or a sequence of commands executed in separate child shells.",
+      "oneOf": [
+        {
+          "$ref": "#/definitions/command"
+        },
+        {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/definitions/command"
+          }
+        }
+      ]
+    },
+    "description": {
+      "description": "Text shown in command listings. Each array item is displayed on its own line.",
+      "oneOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      ]
+    },
+    "leaf": {
+      "type": "object",
+      "description": "A runnable jk command.",
+      "required": [
+        "cmd"
+      ],
+      "properties": {
+        "cmd": {
+          "$ref": "#/definitions/commandBody"
+        },
+        "desc": {
+          "$ref": "#/definitions/description"
+        },
+        "shell": {
+          "$ref": "#/definitions/shell"
+        }
+      },
+      "additionalProperties": false
+    },
+    "namespace": {
+      "type": "object",
+      "description": "A namespace containing child commands or namespaces.",
+      "minProperties": 1,
+      "patternProperties": {
+        "^(?!(cmd|desc|shell)$).*": {
+          "$ref": "#/definitions/node"
+        }
+      },
+      "additionalProperties": false,
+      "x-tombi-additional-key-label": "command_or_namespace"
+    },
+    "node": {
+      "oneOf": [
+        {
+          "$ref": "#/definitions/leaf"
+        },
+        {
+          "$ref": "#/definitions/namespace"
+        }
+      ]
+    },
+    "leafWithShell": {
+      "allOf": [
+        {
+          "$ref": "#/definitions/leaf"
+        },
+        {
+          "required": [
+            "shell"
+          ]
+        }
+      ]
+    },
+    "namespaceWithPerCommandShell": {
+      "type": "object",
+      "description": "A namespace whose descendant commands declare their own shells.",
+      "minProperties": 1,
+      "patternProperties": {
+        "^(?!(cmd|desc|shell)$).*": {
+          "$ref": "#/definitions/nodeWithShell"
+        }
+      },
+      "additionalProperties": false,
+      "x-tombi-additional-key-label": "command_or_namespace"
+    },
+    "nodeWithShell": {
+      "oneOf": [
+        {
+          "$ref": "#/definitions/leafWithShell"
+        },
+        {
+          "$ref": "#/definitions/namespaceWithPerCommandShell"
+        }
+      ]
+    },
+    "configWithDefaultShell": {
+      "type": "object",
+      "required": [
+        "shell"
+      ],
+      "properties": {
+        "shell": {
+          "$ref": "#/definitions/shell"
+        }
+      },
+      "additionalProperties": {
+        "$ref": "#/definitions/node"
+      },
+      "x-tombi-additional-key-label": "command_or_namespace"
+    },
+    "configWithPerCommandShell": {
+      "type": "object",
+      "patternProperties": {
+        "^(?!shell$).*": {
+          "$ref": "#/definitions/nodeWithShell"
+        }
+      },
+      "additionalProperties": false,
+      "x-tombi-additional-key-label": "command_or_namespace"
+    }
+  }
+}
