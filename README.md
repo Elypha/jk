@@ -9,122 +9,109 @@ You have shell incantations you keep copy-pasting from notes - project builds, c
 $ ffmpeg -i in.mp4 -c:v libx264 -preset slow -crf 22 -c:a aac -b:a 128k out.mp4
 
 # After - same exact command, aliased
-$ jk x264enc in.mp4 out.mp4
+$ jk media x264 in.mp4 out.mp4 -preset slow -crf 22
 ```
 
 The string you wrote in `.jk`, after placeholder substitution, is what gets handed to your shell. No DSL, no command rewriting, no wrapper magic or implicit behaviour.
 
-## Example
+## Quick start
 
-`.jk` in your project root (TOML):
+Create `.jk` in your project root. The file uses TOML 1.1:
 
 ```toml
 shell = "bash"
 
 [build]
-desc = "build in release"
 cmd = "cargo build --release"
 
-[update]
-desc = "apt update + upgrade"
-cmd = [
-  "apt update",
-  "apt upgrade -y",
-]
-
-[x264enc]
-desc = "h264 + aac with sensible defaults"
-cmd = "ffmpeg -i #{1} -c:v libx264 -preset slow -crf 22 -c:a aac -b:a 128k #{2}"
+[media.x264]
+desc = "$ jk media x264 INPUT OUTPUT [FFMPEG_ARGS...]"
+cmd = '''
+ffmpeg -i #{1}
+  -c:v libx264
+  #{@}
+  -c:a aac -b:a 128k
+  #{2}
+'''
 ```
 
 ```sh
-$ jk                  # list everything in the current .jk
-$ jk build            # → bash -c 'cargo build --release'
-$ jk update           # runs each item as its own child process
-$ jk x264enc a b      # #{1}/#{2} substituted from argv
-$ jk build ++dry-run  # print the exact command without executing
+$ jk                                      # list all commands
+$ jk media                                # list media/*
+$ jk build ++dry-run
+cargo build --release
+$ jk media x264 in.mp4 out.mp4 -preset slow ++dry-run
+ffmpeg -i in.mp4 -c:v libx264 -preset slow -c:a aac -b:a 128k out.mp4
 ```
+
+`desc` appears in command listings. `#{1}` and `#{2}` select positional arguments; `#{@}` inserts the rest. jk quotes them for the selected shell.
 
 ## More patterns
 
-Multi-line - folded to a single line at run time
-
-```toml
-[docker-sh]
-cmd = '''
-docker run --rm -it
-  -v $(pwd):/work
-  -w /work
-  alpine sh
-'''
-# jk docker-sh
-```
-
-Multi-line descriptions - each array item is one displayed line
+### Sequence and multiline description
 
 ```toml
 [release]
 desc = [
-  "$ jk release 0.1.0",
-  "Bump version, create a tag, and start the draft release workflow",
+  "$ jk release VERSION",
+  "test, then publish",
 ]
-cmd = "./release.sh #{1}"
+cmd = [
+  "cargo test",
+  "./release.sh #{1}",
+]
 ```
 
-Namespaces (any depth) - `jk encode` lists encode/*
+Each item starts a new child shell. Shell state does not carry between items. The sequence stops at the first non-zero exit.
+
+### Raw shell syntax
 
 ```toml
-[encode]
-
-jpg = {
-  desc = "encode JPG",
-  cmd = '''
-    magick #{1}
-      -quality 90
-      #{2}
-  ''',
-}
-# jk encode jpg in.tiff out.jpg
+[log]
+cmd = "git log #{1!}"
+# jk log '--oneline | head -5'
 ```
 
-All remaining args
+`#{N!}` and `#{@!}` skip shell quoting. Use them when one argument must expand into shell syntax.
+
+### Per-command shell
 
 ```toml
-[fmt]
-cmd = "rustfmt #{@}"
-# jk fmt src/main.rs src/lib.rs
-```
-
-Raw substitution - value dropped in without shell-quoting (`#{N!}` / `#{@!}`)
-
-```toml
-[vfilter]
-cmd = "ffmpeg -i in.mp4 -vf '#{1!}' out.mp4"
-# jk vfilter 'scale=640:480'
-```
-
-Per-leaf shell override
-
-```toml
-[winproc]
+[processes]
 shell = "pwsh"
 cmd = "Get-Process | Select-Object Name, CPU"
 ```
 
+`shell` accepts `bash`, `sh`, `zsh`, `pwsh`, or `fish`. A command-level value overrides the file-level value.
+
 ## Install
 
-**Binary** - download from [Releases](https://github.com/Elypha/jk/releases).
+**Binary** (static)
 
-**From source** (stable Rust):
+Download from [Releases](https://github.com/Elypha/jk/releases).
+
+**From source** - build with Rust stable
 
 ```sh
 cargo install --git https://github.com/Elypha/jk --locked
 ```
 
+**Agent skill** - install with the [skills CLI](https://github.com/vercel-labs/skills):
+
+```sh
+npx skills add Elypha/jk --skill use-jk -g
+```
+
+```sh
+npx skills check
+npx skills update use-jk -g
+npx skills remove use-jk -g
+```
+
 ## Notes
 
-- You name the shell (`bash`, `pwsh`, `fish`, `zsh`, `sh`) per file, with optional per-leaf override.
-- Each sequence item is an independent child process - state (cwd, `$(...)` results, shell variables) does **not** carry between items.
+Tech details:
+
 - Child-shell exit codes pass through losslessly, so `jk a && jk b` composes naturally.
 - jk looks for `.jk` walking up from cwd. `~/.jk/config.toml` provides global commands; listings show global and local commands in separate, recursively expanded sections, with groups before individual commands. Local entries with the same name override global.
 

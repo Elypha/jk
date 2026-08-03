@@ -1,0 +1,4 @@
+interface:
+  display_name: "Use jk"
+  short_description: "Reference for jk commands and .jk configuration"
+  default_prompt: "Use $use-jk as a reference for jk commands and .jk syntax."
