@@ -64,5 +64,5 @@ jobs:
           bin: jk
           target: ${{ matrix.target }}
           archive: $bin-$target
-          checksum: sha256
+          # checksum: sha256
           token: ${{ secrets.GITHUB_TOKEN }}
