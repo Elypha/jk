@@ -21,6 +21,7 @@ The global config is `~/.jk/config.toml`. It loads in addition to the local conf
 
 ```text
 jk                         List all commands
+jk ++init                  Create a starter .jk in cwd
 jk <namespace>             List one namespace
 jk <path> [args]           Run one leaf
 jk <path> [args] ++dry-run Print rendered commands
@@ -29,6 +30,7 @@ jk <path> [args] ++dry-run Print rendered commands
 | Syntax | Effect |
 | --- | --- |
 | `++dry-run` | Print rendered commands without running them. |
+| `++init` | Create a starter `.jk` in cwd; refuse to overwrite an existing file. |
 | `++version` | Print the version and exit. |
 | `++config=<path>` | Select the local config file. |
 | `--` | End jk flag parsing. |

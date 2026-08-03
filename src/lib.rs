@@ -2,6 +2,7 @@ pub mod cli;
 pub mod config;
 pub mod error;
 pub mod execute;
+pub mod init;
 pub mod output;
 pub mod render;
 pub mod resolver;

@@ -4,6 +4,7 @@ use crate::error::{JkError, JkResult};
 pub struct ParsedCli {
     pub path: Vec<String>,
     pub dry_run: bool,
+    pub init: bool,
     pub version: bool,
     pub config_path: Option<String>,
 }
@@ -45,7 +46,7 @@ pub fn parse_argv(argv: Vec<String>) -> JkResult<ParsedCli> {
                         }
                         out.config_path = Some(value.to_string());
                     }
-                    "++dry-run" | "++version" => {
+                    "++dry-run" | "++init" | "++version" => {
                         return Err(JkError::MalformedFlag {
                             name: full,
                             reason: "boolean flag does not take a value".into(),
@@ -65,6 +66,7 @@ pub fn parse_argv(argv: Vec<String>) -> JkResult<ParsedCli> {
                 let full = format!("++{}", rest);
                 match full.as_str() {
                     "++dry-run" => out.dry_run = true,
+                    "++init" => out.init = true,
                     "++version" => out.version = true,
                     "++config" => {
                         return Err(JkError::MalformedFlag {
@@ -79,5 +81,19 @@ pub fn parse_argv(argv: Vec<String>) -> JkResult<ParsedCli> {
     }
 
     out.path = positional;
+    if out.init {
+        if !out.path.is_empty() {
+            return Err(JkError::MalformedFlag {
+                name: "++init".into(),
+                reason: "does not take command arguments".into(),
+            });
+        }
+        if out.dry_run || out.version || out.config_path.is_some() {
+            return Err(JkError::MalformedFlag {
+                name: "++init".into(),
+                reason: "cannot be combined with other jk flags".into(),
+            });
+        }
+    }
     Ok(out)
 }

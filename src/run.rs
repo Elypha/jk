@@ -2,6 +2,7 @@ use crate::cli::ParsedCli;
 use crate::config::{self, Config, Origin};
 use crate::error::{JkError, JkResult};
 use crate::execute::run_sequence;
+use crate::init;
 use crate::output::Out;
 use crate::render::{aggregate_shape, fold, substitute, validate_args};
 use crate::resolver::{resolve, ResolveResult};
@@ -16,6 +17,11 @@ pub fn run(cli: ParsedCli, out: &Out) -> JkResult<i32> {
     }
 
     let cwd = std::env::current_dir()?;
+    if cli.init {
+        let path = init::create_in(&cwd)?;
+        println!("created {}", path.display());
+        return Ok(0);
+    }
 
     let local_path: Option<PathBuf> = config::discover(&cwd, cli.config_path.clone())?;
     let local: Option<Config> = match &local_path {

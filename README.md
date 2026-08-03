@@ -16,7 +16,7 @@ The string you wrote in `.jk`, after placeholder substitution, is what gets hand
 
 ## Quick start
 
-Create `.jk` in your project root. The file uses TOML 1.1:
+Run `jk ++init` in your project root, or create `.jk` manually. The file uses TOML 1.1:
 
 ```toml
 #:schema https://raw.githubusercontent.com/Elypha/jk/master/schema/jk.schema.json
@@ -120,6 +120,7 @@ Tech details:
 jk's own flags (all listed below) are prefixed `++` so they never collide with your underlying command's flags:
 
 - `++dry-run` - print the rendered strings without executing
+- `++init` - create a starter `.jk` in the current directory; never overwrite an existing file
 - `++version` - print version and exit
 - `++config=<path>` - use this file instead of cwd walk-up
 - `--` - end-of-flags separator (anything after is positional)
