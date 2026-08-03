@@ -7,6 +7,7 @@ pub struct ParsedCli {
     pub init: bool,
     pub version: bool,
     pub config_path: Option<String>,
+    pub home_path: Option<String>,
 }
 
 pub fn parse_argv(argv: Vec<String>) -> JkResult<ParsedCli> {
@@ -31,20 +32,25 @@ pub fn parse_argv(argv: Vec<String>) -> JkResult<ParsedCli> {
             Some((name, value)) => {
                 let full = format!("++{}", name);
                 match full.as_str() {
-                    "++config" => {
+                    "++config" | "++home" => {
                         if value.is_empty() {
                             return Err(JkError::MalformedFlag {
                                 name: full,
                                 reason: "value cannot be empty".into(),
                             });
                         }
-                        if out.config_path.is_some() {
+                        let slot = if full == "++config" {
+                            &mut out.config_path
+                        } else {
+                            &mut out.home_path
+                        };
+                        if slot.is_some() {
                             return Err(JkError::MalformedFlag {
                                 name: full,
                                 reason: "may only be specified once".into(),
                             });
                         }
-                        out.config_path = Some(value.to_string());
+                        *slot = Some(value.to_string());
                     }
                     "++dry-run" | "++init" | "++version" => {
                         return Err(JkError::MalformedFlag {
@@ -68,7 +74,7 @@ pub fn parse_argv(argv: Vec<String>) -> JkResult<ParsedCli> {
                     "++dry-run" => out.dry_run = true,
                     "++init" => out.init = true,
                     "++version" => out.version = true,
-                    "++config" => {
+                    "++config" | "++home" => {
                         return Err(JkError::MalformedFlag {
                             name: full,
                             reason: "expected '=<value>'".into(),
@@ -88,7 +94,7 @@ pub fn parse_argv(argv: Vec<String>) -> JkResult<ParsedCli> {
                 reason: "does not take command arguments".into(),
             });
         }
-        if out.dry_run || out.version || out.config_path.is_some() {
+        if out.dry_run || out.version || out.config_path.is_some() || out.home_path.is_some() {
             return Err(JkError::MalformedFlag {
                 name: "++init".into(),
                 reason: "cannot be combined with other jk flags".into(),

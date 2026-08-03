@@ -25,13 +25,13 @@ pub fn run(cli: ParsedCli, out: &Out) -> JkResult<i32> {
 
     let local_path: Option<PathBuf> = config::discover(&cwd, cli.config_path.clone())?;
     let local: Option<Config> = match &local_path {
-        Some(p) => Some(config::load_from_path(p)?),
+        Some(p) => Some(load_scoped_from(p, "local")?),
         None => None,
     };
 
-    let global_path: Option<PathBuf> = config::global_config_path();
+    let global_path: Option<PathBuf> = config::global_config_path(cli.home_path.as_deref());
     let global: Option<Config> = match &global_path {
-        Some(p) if p.is_file() => Some(load_global_from(p)?),
+        Some(p) if p.is_file() => Some(load_scoped_from(p, "global")?),
         _ => None,
     };
 
@@ -89,13 +89,13 @@ pub fn run(cli: ParsedCli, out: &Out) -> JkResult<i32> {
     }
 }
 
-fn load_global_from(p: &std::path::Path) -> JkResult<Config> {
+fn load_scoped_from(p: &std::path::Path, scope: &str) -> JkResult<Config> {
     config::load_from_path(p).map_err(|e| match e {
         JkError::ConfigParse(m) => {
-            JkError::ConfigParse(format!("in global config {}: {}", p.display(), m))
+            JkError::ConfigParse(format!("in {} config {}: {}", scope, p.display(), m))
         }
         JkError::ConfigSchema(m) => {
-            JkError::ConfigSchema(format!("in global config {}: {}", p.display(), m))
+            JkError::ConfigSchema(format!("in {} config {}: {}", scope, p.display(), m))
         }
         other => other,
     })

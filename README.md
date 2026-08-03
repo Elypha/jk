@@ -124,15 +124,18 @@ npx skills remove use-jk -g
 Tech details:
 
 - Child-shell exit codes pass through losslessly, so `jk a && jk b` composes naturally.
-- jk looks for `.jk` walking up from cwd. `~/.jk/config.toml` provides global commands; listings show global and local commands in separate, recursively expanded sections, with groups before individual commands. Local entries with the same name override global.
-- Write long commands in a readable way. jk joins each `cmd` into a one-line string.
+- Listings show global and local commands. Local entries with the same name override global.
+  - Local config: `++config=<path>` > non-empty `JK_CONFIG` > nearest `.jk` walking up from cwd.
+  - Global config: `<jk-home>/config.toml`, where jk home is `++home=<dir>` > non-empty `JK_HOME` > `~/.jk`.
+- jk joins each `cmd` into a one-line string. Write long commands in a readable way.
 
 jk's own flags (all listed below) are prefixed `++` so they never collide with your underlying command's flags:
 
 - `++dry-run` - print the rendered strings without executing
-- `++init` - create a starter `.jk` in the current directory; never overwrite an existing file
+- `++init` - create a local `.jk` in the current directory if none exists
 - `++version` - print version and exit
-- `++config=<path>` - use this file instead of cwd walk-up
+- `++config=<path>` - use this local config file
+- `++home=<dir>` - use this jk home directory
 - `--` - end-of-flags separator (anything after is positional)
 
 ## License

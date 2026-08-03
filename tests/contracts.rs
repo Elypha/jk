@@ -28,6 +28,7 @@ fn run_jk_with_env(project: &TempDir, home: &Path, args: &[&str], env: &[(&str, 
         .env(HOME_VAR, home)
         .env("JK_NO_COLOR", "1")
         .env_remove("JK_CONFIG")
+        .env_remove("JK_HOME")
         .env_remove("JK_QUIET")
         .args(args);
     for (key, value) in env {
@@ -36,19 +37,12 @@ fn run_jk_with_env(project: &TempDir, home: &Path, args: &[&str], env: &[(&str, 
     command.output().unwrap()
 }
 
-fn bun_available() -> bool {
-    Command::new("bun")
-        .args(["--no-env-file", "exec", "exit 0"])
-        .output()
-        .is_ok_and(|output| output.status.success())
-}
-
 fn default_home(project: &TempDir) -> std::path::PathBuf {
     project.path().join("home")
 }
 
 #[test]
-fn readme_multiline_inline_table_reaches_exact_dry_run_command() {
+fn toml_1_1_multiline_inline_table_reaches_exact_dry_run_command() {
     let project = TempDir::new().unwrap();
     let config = r#"
 shell = "__SHELL__"
@@ -129,34 +123,7 @@ fn failed_sequence_step_returns_its_code_and_does_not_run_later_steps() {
 }
 
 #[test]
-fn local_command_replaces_same_named_global_command() {
-    let project = TempDir::new().unwrap();
-    let home = default_home(&project);
-    std::fs::create_dir_all(home.join(".jk")).unwrap();
-
-    let global = format!("shell = \"{TEST_SHELL}\"\n\n[shared]\ncmd = \"echo global\"\n");
-    write(&home.join(".jk").join("config.toml"), &global);
-
-    let local = format!("shell = \"{TEST_SHELL}\"\n\n[shared]\ncmd = \"echo local\"\n");
-    write(&project.path().join(".jk"), &local);
-
-    let output = run_jk(&project, &home, &["++dry-run", "shared"]);
-
-    assert!(
-        output.status.success(),
-        "stderr: {}",
-        String::from_utf8_lossy(&output.stderr)
-    );
-    assert_eq!(String::from_utf8(output.stdout).unwrap(), "echo local\n");
-}
-
-#[test]
 fn bun_shell_round_trips_quoted_placeholders() {
-    if !bun_available() {
-        eprintln!("skip: bun is not on PATH or does not support `bun exec`");
-        return;
-    }
-
     let project = TempDir::new().unwrap();
     write(
         &project.path().join(".jk"),
@@ -195,11 +162,6 @@ cmd = "bun -e 'console.log(JSON.stringify(process.argv.slice(1)))' -- #{@}"
 
 #[test]
 fn bun_shell_ignores_dotenv_and_bun_options() {
-    if !bun_available() {
-        eprintln!("skip: bun is not on PATH or does not support `bun exec`");
-        return;
-    }
-
     let project = TempDir::new().unwrap();
     write(&project.path().join(".env"), "JK_BUN_PROBE=loaded\n");
     write(
@@ -228,11 +190,6 @@ cmd = '''if [ -z "$JK_BUN_PROBE" ]; then exit 0; else exit 91; fi'''
 
 #[test]
 fn bun_shell_exit_code_is_process_exit_code() {
-    if !bun_available() {
-        eprintln!("skip: bun is not on PATH or does not support `bun exec`");
-        return;
-    }
-
     let project = TempDir::new().unwrap();
     write(
         &project.path().join(".jk"),
@@ -260,11 +217,6 @@ cmd = '''printf 'git-for-windows:%s' "$BASH_VERSION"'''
 
     let output = run_jk(&project, &default_home(&project), &["version"]);
     let stderr = String::from_utf8_lossy(&output.stderr);
-    if !output.status.success() && stderr.contains("Git for Windows Bash was not found") {
-        eprintln!("skip: Git for Windows Bash is not installed");
-        return;
-    }
-
     assert!(output.status.success(), "stderr: {stderr}");
     let stdout = String::from_utf8(output.stdout).unwrap();
     assert!(

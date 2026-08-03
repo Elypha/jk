@@ -138,14 +138,23 @@ pub fn discover(start: &Path, explicit: Option<String>) -> JkResult<Option<PathB
     Ok(None)
 }
 
-/// Expected path for the global config (`<home>/.jk/config.toml`), without
-/// checking whether the file exists.
+/// Expected path for the global config (`<jk-home>/config.toml`), without
+/// checking whether the file exists. jk home priority is:
 ///
-/// Home is read from `HOME` on Unix and `USERPROFILE` on Windows.
-/// Returns `None` if the environment variable is absent (treated as no global config).
-pub fn global_config_path() -> Option<PathBuf> {
-    let home = home_dir()?;
-    Some(home.join(".jk").join("config.toml"))
+/// 1. explicit `++home`
+/// 2. non-empty `JK_HOME`
+/// 3. `<HOME>/.jk` on Unix or `<USERPROFILE>/.jk` on Windows
+///
+/// Returns `None` if neither an override nor the platform home variable exists.
+pub fn global_config_path(explicit_home: Option<&str>) -> Option<PathBuf> {
+    let jk_home = if let Some(path) = explicit_home {
+        PathBuf::from(path)
+    } else if let Some(path) = std::env::var_os("JK_HOME").filter(|path| !path.is_empty()) {
+        PathBuf::from(path)
+    } else {
+        home_dir()?.join(".jk")
+    };
+    Some(jk_home.join("config.toml"))
 }
 
 fn home_dir() -> Option<PathBuf> {

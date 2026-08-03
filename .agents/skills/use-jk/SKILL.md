@@ -15,7 +15,7 @@ Local config priority:
 2. Non-empty `JK_CONFIG`
 3. Nearest `.jk`, searched from the current directory through its parents
 
-The global config is `~/.jk/config.toml`. It loads in addition to the local config. A local leaf replaces the global leaf at the same path. Leaf/namespace conflicts are errors.
+The global config is `<jk-home>/config.toml`. jk home priority is `++home=<dir>`, non-empty `JK_HOME`, then `~/.jk`. It loads in addition to the local config. A local leaf replaces the global leaf at the same path. Leaf/namespace conflicts are errors.
 
 ## CLI
 
@@ -33,6 +33,7 @@ jk <path> [args] ++dry-run Print rendered commands
 | `++init` | Create a starter `.jk` in cwd; refuse to overwrite an existing file. |
 | `++version` | Print the version and exit. |
 | `++config=<path>` | Select the local config file. |
+| `++home=<dir>` | Select the jk home directory. |
 | `--` | End jk flag parsing. |
 
 `++` flags can appear anywhere before `--`. Set `JK_QUIET=1` to suppress execution status and config paths. Set `JK_NO_COLOR=1` to disable colour.
