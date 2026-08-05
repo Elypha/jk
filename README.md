@@ -54,7 +54,8 @@ Quick notes:
     - `pwsh` is .NET PowerShell Core (Windows/Linux/macOS), not Windows PowerShell (`powershell.exe`).
     - `bun` uses [Bun Shell](https://bun.com/docs/runtime/shell) through `bun exec`, providing a cross-platform, bash-like shell.
 2. `desc` is used for command listings.
-3. `#{1}` and `#{2}` select positional arguments, and `#{@}` inserts the rest.
+3. A command can set `quiet = true` or `no-color = true` to enable the matching jk output flag whenever that command runs.
+4. `#{1}` and `#{2}` select positional arguments, and `#{@}` inserts the rest.
     - jk quotes `#{}` injection for the selected shell. See [Raw shell syntax](#raw-shell-syntax) if you don't want quoting.
 
 ## More patterns
@@ -95,6 +96,17 @@ cmd = "Get-Process | Select-Object Name, CPU"
 
 A command-level value overrides the file-level value.
 
+### Per-command output
+
+```toml
+[build]
+quiet = true
+no-color = true
+cmd = "cargo build --release"
+```
+
+`quiet` suppresses jk's execution status; it does not suppress command output or errors. `no-color` disables colour in jk's own output and does not change the child process environment. `false` and omission have the same effect. A `true` value composes additively with `++quiet` / `++no-color` and `JK_QUIET=1` / `JK_NO_COLOR=1`; one source cannot disable another.
+
 ## Install
 
 **Binary** (static)
@@ -132,11 +144,15 @@ Tech details:
 jk's own flags (all listed below) are prefixed `++` so they never collide with your underlying command's flags:
 
 - `++dry-run` - print the rendered strings without executing
+- `++quiet` - suppress jk execution status and omit config paths from listings
+- `++no-color` - disable colour in jk's own output
 - `++init` - create a local `.jk` in the current directory if none exists
 - `++version` - print version and exit
 - `++config=<path>` - use this local config file
 - `++home=<dir>` - use this jk home directory
 - `--` - end-of-flags separator (anything after is positional)
+
+`JK_QUIET=1` and `JK_NO_COLOR=1` provide process-environment equivalents of the two output flags. Only the exact value `1` enables them.
 
 ## License
 

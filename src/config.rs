@@ -36,6 +36,8 @@ pub enum Origin {
 pub struct LeafCommand {
     pub desc: Vec<String>,
     pub shell: Shell,
+    pub quiet: bool,
+    pub no_color: bool,
     pub cmd: CmdBody,
     pub origin: Origin,
 }
@@ -240,7 +242,12 @@ fn build_node(path_for_err: &str, value: toml::Value, file_shell: Option<Shell>)
 
     let has_cmd = table.contains_key("cmd");
     let has_children = table.iter().any(|(k, v)| {
-        !matches!(k.as_str(), "cmd" | "desc" | "shell") && matches!(v, toml::Value::Table(_))
+        let reserved = if has_cmd {
+            is_leaf_field(k)
+        } else {
+            is_structural_field(k)
+        };
+        !reserved && matches!(v, toml::Value::Table(_))
     });
 
     if has_cmd && has_children {
@@ -283,6 +290,8 @@ fn build_node(path_for_err: &str, value: toml::Value, file_shell: Option<Shell>)
             None => None,
             _ => return Err(JkError::ConfigSchema(format!("'{}'.shell must be string", path_for_err))),
         };
+        let quiet = parse_bool_field(&table, path_for_err, "quiet")?;
+        let no_color = parse_bool_field(&table, path_for_err, "no-color")?;
         let cmd = match table.get("cmd").unwrap() {
             toml::Value::String(s) => CmdBody::Single(s.clone()),
             toml::Value::Array(arr) => {
@@ -330,7 +339,7 @@ fn build_node(path_for_err: &str, value: toml::Value, file_shell: Option<Shell>)
         }
 
         for (k, _) in table.iter() {
-            if !matches!(k.as_str(), "cmd" | "desc" | "shell") {
+            if !is_leaf_field(k) {
                 return Err(JkError::ConfigSchema(format!(
                     "'{}'.{} is not a known leaf field",
                     path_for_err, k
@@ -368,11 +377,18 @@ fn build_node(path_for_err: &str, value: toml::Value, file_shell: Option<Shell>)
                 path_for_err
             )));
         };
-        Ok(CommandNode::Leaf(LeafCommand { desc, shell: baked_shell, cmd, origin: Origin::LocalOnly }))
+        Ok(CommandNode::Leaf(LeafCommand {
+            desc,
+            shell: baked_shell,
+            quiet,
+            no_color,
+            cmd,
+            origin: Origin::LocalOnly,
+        }))
     } else if has_children {
         let mut children = BTreeMap::new();
         for (k, v) in table {
-            if matches!(k.as_str(), "cmd" | "desc" | "shell") {
+            if is_structural_field(&k) {
                 return Err(JkError::ConfigSchema(format!(
                     "'{}' is a namespace; field '{}' is not allowed here",
                     path_for_err, k
@@ -390,7 +406,7 @@ fn build_node(path_for_err: &str, value: toml::Value, file_shell: Option<Shell>)
         Ok(CommandNode::Namespace(children))
     } else {
         let unknown: Vec<String> = table.iter()
-            .filter(|(k, _)| !matches!(k.as_str(), "cmd" | "desc" | "shell"))
+            .filter(|(k, _)| !is_structural_field(k))
             .map(|(k, _)| k.clone())
             .collect();
         if !unknown.is_empty() {
@@ -404,5 +420,27 @@ fn build_node(path_for_err: &str, value: toml::Value, file_shell: Option<Shell>)
                 path_for_err
             )))
         }
+    }
+}
+
+fn is_leaf_field(key: &str) -> bool {
+    is_structural_field(key) || matches!(key, "quiet" | "no-color")
+}
+
+fn is_structural_field(key: &str) -> bool {
+    matches!(key, "cmd" | "desc" | "shell")
+}
+
+fn parse_bool_field(
+    table: &toml::map::Map<String, toml::Value>,
+    path_for_err: &str,
+    field: &str,
+) -> JkResult<bool> {
+    match table.get(field) {
+        Some(toml::Value::Boolean(value)) => Ok(*value),
+        None => Ok(false),
+        _ => Err(JkError::ConfigSchema(format!(
+            "'{path_for_err}'.{field} must be boolean"
+        ))),
     }
 }

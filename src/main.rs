@@ -7,7 +7,7 @@ fn main() {
     init_local_offset();
 
     let argv: Vec<String> = std::env::args().skip(1).collect();
-    let out = Out::from_env();
+    let mut out = Out::from_env();
 
     let cli = match parse_argv(argv) {
         Ok(c) => c,
@@ -16,8 +16,9 @@ fn main() {
             std::process::exit(1);
         }
     };
+    out.apply(cli.quiet, cli.no_color);
 
-    match run(cli, &out) {
+    match run(cli, &mut out) {
         Ok(code) => std::process::exit(code),
         Err(e) => {
             out.user_error(&e.to_string());

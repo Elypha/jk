@@ -30,13 +30,15 @@ jk <path> [args] ++dry-run Print rendered commands
 | Syntax | Effect |
 | --- | --- |
 | `++dry-run` | Print rendered commands without running them. |
+| `++quiet` | Suppress jk execution status and omit config paths from listings. |
+| `++no-color` | Disable colour in jk's own output. |
 | `++init` | Create a starter `.jk` in cwd; refuse to overwrite an existing file. |
 | `++version` | Print the version and exit. |
 | `++config=<path>` | Select the local config file. |
 | `++home=<dir>` | Select the jk home directory. |
 | `--` | End jk flag parsing. |
 
-`++` flags can appear anywhere before `--`. Set `JK_QUIET=1` to suppress execution status and config paths. Set `JK_NO_COLOR=1` to disable colour.
+`++` flags can appear anywhere before `--`. `JK_QUIET=1` and `JK_NO_COLOR=1` are process-environment equivalents of `++quiet` and `++no-color`; only the exact value `1` enables them.
 
 ## TOML
 
@@ -46,6 +48,8 @@ jk <path> [args] ++dry-run Print rendered commands
 shell = "pwsh"
 
 [build]
+quiet = true
+no-color = true
 cmd = "cargo build --release"
 
 [git.pull]
@@ -75,13 +79,16 @@ ffmpeg -i in.mp4 -preset slow out.mp4
 
 | Item | Form |
 | --- | --- |
-| Leaf | Table with `cmd`; optional `desc` and `shell` |
+| Leaf | Table with `cmd`; optional `desc`, `shell`, `quiet`, and `no-color` |
 | Namespace | Table containing child tables only |
 | `cmd` | Non-empty string or non-empty string array |
 | `desc` | String or string array |
 | `shell` | `bash`, `sh`, `zsh`, `pwsh`, `fish`, or `bun` |
+| `quiet` | Boolean; suppress jk execution status for this leaf. |
+| `no-color` | Boolean; disable colour in jk's own output for this leaf. |
 
 A leaf `shell` overrides the file `shell`. Each `desc` array item displays on a separate line.
+For `quiet` and `no-color`, `false` and omission have the same effect. A `true` leaf value composes additively with the matching CLI flag and environment variable; one source cannot disable another. Leaf output settings apply after command resolution, so they do not affect listings or errors that occur before a leaf is resolved.
 
 On Windows, `bash` uses the Bash bundled with Git for Windows; on other platforms it uses the native `bash` on `PATH`. `bun` selects Bun Shell, which is cross-platform and bash-like but not fully Bash- or POSIX-compatible.
 

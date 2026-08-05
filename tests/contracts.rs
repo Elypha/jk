@@ -2,6 +2,9 @@ use std::path::Path;
 use std::process::{Command, Output};
 use tempfile::TempDir;
 
+use jk::cli::parse_argv;
+use jk::config::{self, CommandNode};
+
 #[cfg(unix)]
 const HOME_VAR: &str = "HOME";
 #[cfg(windows)]
@@ -39,6 +42,115 @@ fn run_jk_with_env(project: &TempDir, home: &Path, args: &[&str], env: &[(&str, 
 
 fn default_home(project: &TempDir) -> std::path::PathBuf {
     project.path().join("home")
+}
+
+#[test]
+fn cli_output_flags_parse_before_the_separator() {
+    let cli = parse_argv(vec!["build".into(), "++quiet".into(), "++no-color".into()]).unwrap();
+
+    assert!(cli.quiet);
+    assert!(cli.no_color);
+    assert_eq!(cli.path, ["build"]);
+
+    let after_separator = parse_argv(vec![
+        "build".into(),
+        "--".into(),
+        "++quiet".into(),
+        "++no-color".into(),
+    ])
+    .unwrap();
+    assert!(!after_separator.quiet);
+    assert!(!after_separator.no_color);
+    assert_eq!(after_separator.path, ["build", "++quiet", "++no-color"]);
+
+    assert!(parse_argv(vec!["++quiet=true".into()]).is_err());
+    assert!(parse_argv(vec!["++no-color=true".into()]).is_err());
+}
+
+#[test]
+fn leaf_output_modifiers_are_boolean_and_default_to_false() {
+    let config = config::parse_str(&format!(
+        r#"
+shell = "{TEST_SHELL}"
+
+[normal]
+cmd = "exit 0"
+
+[modified]
+quiet = true
+no-color = true
+cmd = "exit 0"
+
+[nested.quiet]
+cmd = "exit 0"
+
+[nested.no-color]
+cmd = "exit 0"
+"#
+    ))
+    .unwrap();
+
+    let Some(CommandNode::Leaf(normal)) = config.tree.lookup(&["normal".into()]) else {
+        panic!("normal did not resolve to a leaf");
+    };
+    assert!(!normal.quiet);
+    assert!(!normal.no_color);
+
+    let Some(CommandNode::Leaf(modified)) = config.tree.lookup(&["modified".into()]) else {
+        panic!("modified did not resolve to a leaf");
+    };
+    assert!(modified.quiet);
+    assert!(modified.no_color);
+
+    assert!(matches!(
+        config.tree.lookup(&["nested".into(), "quiet".into()]),
+        Some(CommandNode::Leaf(_))
+    ));
+    assert!(matches!(
+        config.tree.lookup(&["nested".into(), "no-color".into()]),
+        Some(CommandNode::Leaf(_))
+    ));
+
+    let error = config::parse_str(&format!(
+        "shell = \"{TEST_SHELL}\"\n\n[bad]\nquiet = \"true\"\ncmd = \"exit 0\"\n"
+    ))
+    .unwrap_err();
+    assert!(error.to_string().contains("'bad'.quiet must be boolean"));
+}
+
+#[test]
+fn leaf_cli_and_environment_quiet_all_suppress_jk_status() {
+    let project = TempDir::new().unwrap();
+    let config = format!(
+        r#"
+shell = "{TEST_SHELL}"
+
+[normal]
+cmd = "exit 0"
+
+[quiet]
+quiet = true
+cmd = "exit 42"
+"#
+    );
+    write(&project.path().join(".jk"), &config);
+    let home = default_home(&project);
+
+    let normal = run_jk(&project, &home, &["normal"]);
+    assert!(normal.status.success());
+    assert!(String::from_utf8_lossy(&normal.stderr).contains("[jk]"));
+
+    let leaf = run_jk(&project, &home, &["quiet"]);
+    assert_eq!(leaf.status.code(), Some(42));
+    assert!(leaf.stderr.is_empty());
+
+    let cli = run_jk(&project, &home, &["normal", "++quiet"]);
+    assert!(cli.status.success());
+    assert!(cli.stderr.is_empty());
+
+    let env = run_jk_with_env(&project, &home, &["normal"], &[("JK_QUIET", "1")]);
+    assert!(env.status.success());
+    assert!(env.stderr.is_empty());
 }
 
 #[test]

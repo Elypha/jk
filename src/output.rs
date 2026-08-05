@@ -287,6 +287,16 @@ impl Out {
         }
     }
 
+    /// Enable output modifiers. A `false` value leaves the current policy unchanged,
+    /// so CLI, environment, and leaf settings compose additively.
+    pub fn apply(&mut self, quiet: bool, no_color: bool) {
+        self.quiet |= quiet;
+        if no_color {
+            self.color = false;
+            self.stdout_color = false;
+        }
+    }
+
     pub fn step_header(&self, cmd: &str) {
         if self.quiet {
             return;

@@ -10,7 +10,7 @@ use std::path::PathBuf;
 
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
-pub fn run(cli: ParsedCli, out: &Out) -> JkResult<i32> {
+pub fn run(cli: ParsedCli, out: &mut Out) -> JkResult<i32> {
     if cli.version {
         println!("jk {}", VERSION);
         return Ok(0);
@@ -62,6 +62,7 @@ pub fn run(cli: ParsedCli, out: &Out) -> JkResult<i32> {
             Ok(0)
         }
         ResolveResult::Leaf(resolved) => {
+            out.apply(resolved.leaf.quiet, resolved.leaf.no_color);
             let shell = resolved.leaf.shell;
 
             let raw_cmds = resolved.leaf.cmd_strings();

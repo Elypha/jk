@@ -74,6 +74,14 @@
         },
         "shell": {
           "$ref": "#/definitions/shell"
+        },
+        "quiet": {
+          "type": "boolean",
+          "description": "Suppress jk execution status for this command. CLI, environment, and leaf settings compose additively."
+        },
+        "no-color": {
+          "type": "boolean",
+          "description": "Disable colour in jk's own output for this command. CLI, environment, and leaf settings compose additively."
         }
       },
       "additionalProperties": false
